@@ -1,0 +1,1 @@
+Folder where the KELMCorpus is stored after downloading

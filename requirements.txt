@@ -1,0 +1,10 @@
+torch
+torchvision
+torchaudio
+torchtext
+pytorch-lightning
+transformers
+neptune-client
+torch-scatter
+torch-sparse
+torch-geometric
