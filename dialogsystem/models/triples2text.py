@@ -14,20 +14,19 @@ class Triples2TextSystem(LightningModule):
         self.model.train()
 
     def forward(self,input):
+        '''
+        input textual triple of shape [batchsize, maximum_length]
+        '''
         input = self.tokenizer(input)
-        outputs = self.model(input)
-        return 
+        outputs = self.model(input)[:,:-len(input)]
+        return outputs
 
     def training_step(self,batch,batch_idx):
-        input_idss = [it["input_ids"] for it in batch[0]]
-        attention_masks = [it["attention_mask"] for it in batch[0]]
+        batched_triples, batched_targets = batch
+        return self.update_step(batched_triples, batched_targets, "train")
 
-        return self.update_step(input_idss,attention_masks,"train")
-
-    def update_step(self,input_idss,attention_masks,labels,log_string):        
-        input_idxs = input_idxs + [input_idss[idx]]
-        outputs = self.model(cat(input_idxs), labels=target_input_idss[idx])
-        input_idxs = input_idxs + target_input_idss[idx] ## Add target turn to context for next turn
+    def update_step(self,src_encodings,target_encodings,log_string):        
+        outputs = self.model(src_encodings, labels=target_encodings)
         loss = outputs[0]
         self.log(f"{log_string}_loss",loss.item())
         return loss
