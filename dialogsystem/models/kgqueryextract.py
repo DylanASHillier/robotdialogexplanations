@@ -7,6 +7,10 @@ class KGQueryMPNN(Module):
     def __init__(self, num_layers, embedding_size, k):
         '''
         Operates over a graph to obtain the indices of edges that should be used in the knowledge graph
+        Arguments:
+            num_layers,
+            embedding_size,
+            k: value used for top-k layer
         '''
         self.final_layer = Conv1d(embedding_size,1,1)
         self.hidden_layers = ModuleList([GATv2Conv(embedding_size,embedding_size,edge_dim=embedding_size) for i in range(num_layers)])
