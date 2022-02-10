@@ -9,6 +9,7 @@ class Triples2TextSystem(LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(base_model)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(base_model)
         self.lr = lr
+        self.save_hyperparameters()
 
     def setup_train(self):
         self.model.train()
