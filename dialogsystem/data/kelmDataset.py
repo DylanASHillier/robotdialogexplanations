@@ -1,5 +1,4 @@
 from torch.utils.data import Dataset
-from .dataimport import DataImporter
 import json
 
 class KELMDataset(Dataset):
