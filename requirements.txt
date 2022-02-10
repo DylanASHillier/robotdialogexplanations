@@ -8,3 +8,4 @@ neptune-client
 torch-scatter
 torch-sparse
 torch-geometric
+Levenshtein
