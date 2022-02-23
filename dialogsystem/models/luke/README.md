@@ -1,1 +1,0 @@
-This contains several files from the https://github.com/studio-ousia/luke directory. These are used for implementing an entity disambiguation model.
