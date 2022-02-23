@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningModule
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from torch import mean, stack
+from torch import mean, stack, cat
 from torch.optim import Adam
 from dialogsystem.models.kgqueryextract import KGQueryMPNN
 from models.GraphEmbedder import LMEmbedder,GraphDataEmbedder
@@ -8,7 +8,7 @@ from models.triples2text import Triples2TextSystem
 from transformers import T5EncoderModel, T5Tokenizer
 
 class QASystem(LightningModule):
-    def __init__(self,t5encoder_weights,t2t_weights,lm_embedding_size,base_model='t5',lr=1e-5):
+    def __init__(self,t2t_weights,lm_embedding_size,base_model='t5',lr=1e-5):
         super(QASystem,self).__init__()
         self.triples2text = Triples2TextSystem()
         self.triples2text.load_state_dict(t2t_weights)
@@ -19,7 +19,7 @@ class QASystem(LightningModule):
             param.requires_grad=False
         for param in self.triples2text.parameters():
             param.requires_grad=False
-        self.graphembedder = GraphDataEmbedder(lm_embedding_size,t5encoder)
+        self.graphembedder = GraphDataEmbedder(lm_embedding_size,self.t5encoder)
         self.kggnn = KGQueryMPNN(3,20,2)
         self.lr = lr
 
@@ -29,19 +29,27 @@ class QASystem(LightningModule):
     def forward(self,query,graph):
         '''
         Arguments:
-            query:
-            graph:
+            query: string
+            graph: the graph overwhich the question is run
         '''
         embedded_graph = self.graphembedder(graph,query)
-        t2tinput = self.kggnn(embedded_graph)
-        t2toutput = self.t2t(t2tinput)
+        transformed_graph, edge_index = self.graphtransformer(embedded_graph)
+        activated_edges = self.kggnn(transformed_graph)
+        triples = []
+        for edge in activated_edges:
+            triples.append(edge_index[edge])
+        t2toutput = self.triples2text(cat(triples),query)
         return t2toutput
 
     def training_step(self,batch,batch_idx):
         batched_triples, batched_targets = batch
         return self.update_step(batched_triples, batched_targets, "train")
 
-    def update_step(self,src_encodings,target_encodings,log_string):        
+    def update_step(self,src_encodings,target_encodings,log_string):
+        '''
+        Calculates the loss. For this model loss is equivalent to:
+        confidence(triples)*encoding_loss
+        '''     
         outputs = self.model(src_encodings, labels=target_encodings)
         loss = outputs[0]
         self.log(f"{log_string}_loss",loss.item())

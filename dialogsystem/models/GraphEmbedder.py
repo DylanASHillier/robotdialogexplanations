@@ -1,4 +1,3 @@
-from networkx.classes.function import set_edge_attributes, set_node_attributes
 from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear
@@ -30,8 +29,8 @@ class LMEmbedder(Module):
 
 class JointEmbedder(Module):
     '''
-    Used to embed a (query, graph_text) pair into an embedding_size dimensional vector
-    The graph_text is either the text on the node or on the edges
+    Used to embed a (query, graph_text) pair into an embedding_size dimensional vector\\
+    The graph_text is either the text on the node or on the edges\\
     Note that query and graph_text are embedded into initial_embedding_size (the output of an LM)    
     '''
     def __init__(self, initial_embedding_size,embedding_size,hidden_dim):
@@ -49,34 +48,27 @@ class JointEmbedder(Module):
         return x
 
 class GraphTransformer(Module):
-    def __init__(self, lm_embedder) -> None:
-        self.lm_embedder = lm_embedder
+    def __init__(self,) -> None:
+        self.graph_embedder = GraphDataEmbedder()
 
-    def forward(self,nxgraph,entity_candidates,k):
+    def forward(self,nxgraph):
         '''
-        arguments
+        arguments:
             nxgraph: a networkx (knowledge) graph
-            entity_candidates: a list of nodes that are likely candidates for the question
-            k: the k-hop radius used
+        returns:
+            data, edge_index (torch_geometric format)
+        Changes the networkx graph into a line graph.
 
-        this takes the k-hop neighbourhood for each entity candidate and unions-this together to form a graph of relevance
-        Then it transforms the data into the requisite tensors, and finally it takes the LineGraph of the graph!
-
-        use the edge_index to reverse the line graph transform.
+        use the edge_index to reverse the line graph transform (for checking the text on the original triple).
         '''
-        graph = compose_all([ego_graph(nxgraph,entity,radius=k) for entity in entity_candidates])
-        node_attributes = get_node_attributes(graph)
-        for node in node_attributes:
-            node_attributes[node]=self.lm_embedder(node_attributes[node])
-        edge_attributes = get_edge_attributes(graph)
-        for edge in edge_attributes:
-            edge_attributes[edge]=self.lm_embedder(edge_attributes[edge])
-
-        data = from_networkx(graph,node_attributes,edge_attributes)
+        node_attributes, edge_attributes = self.graph_embedder(nxgraph)
+        for edge in edge_attributes: # combine embeddings for nodes and edges
+            edge_attributes[edge]=cat[edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]
+        data = from_networkx(nxgraph,None,edge_attributes)
         edge_index = data.edge_index
         data = LineGraph()(data)
         return data, edge_index
-
+        
 class GraphDataEmbedder(Module):
     def __init__(self, lm_embedding_size, lm_embedder, embedding_size):
         super().__init__()
@@ -84,13 +76,16 @@ class GraphDataEmbedder(Module):
         self.nodeEmbedder = JointEmbedder(lm_embedding_size, embedding_size)
         self.edgeEmbedder = JointEmbedder(lm_embedding_size, embedding_size)
 
-    def forward(self, lm_embedded_nxgraph, query):
+    def forward(self, graph, query):
         '''
         Arguments:
-            nodes: [batchsize, num_nodes, features]
+            graph: networkx graph instance,
+            query: string, query used
         '''
-        updated_node_representations = self.nodeEmbedder(nodes)
-        edge_attributes = self.edgeEmbedder(edge_attributes)
-
-
-DATASET IDEA: use the wikiqa dataset --> just use the questions and attempt to recreate the graphs for each paper?
+        node_attributes = get_node_attributes(graph)
+        for node in node_attributes:
+            node_attributes[node]=self.node_embedder(node_attributes[node],query)
+        edge_attributes = get_edge_attributes(graph)
+        for edge in edge_attributes:
+            edge_attributes[edge]=self.edge_embedder(edge_attributes[edge],query)
+        return node_attributes,edge_attributes
