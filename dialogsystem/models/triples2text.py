@@ -23,14 +23,17 @@ class Triples2TextSystem(LightningModule):
         return outputs
 
     def training_step(self,batch,batch_idx):
-        batched_triples, batched_targets = batch
-        return self.update_step(batched_triples, batched_targets, "train")
+        return self.update_step(batch, "train")
 
-    def update_step(self,src_encodings,target_encodings,log_string):        
-        outputs = self.model(src_encodings, labels=target_encodings)
+    def update_step(self,batch,log_string):
+        batched_triples_ids, batched_triple_mask, batched_target_ids, batched_target_mask = batch      
+        outputs = self.model(batched_triples_ids, labels=batched_target_ids)
         loss = outputs[0]
         self.log(f"{log_string}_loss",loss.item())
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        return self.update_step(batch, "validation")
 
     def configure_optimizers(self):
         return Adam(self.parameters(), self.lr)

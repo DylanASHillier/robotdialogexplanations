@@ -2,7 +2,7 @@ from pytorch_lightning import LightningModule
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from torch import mean, stack, cat
 from torch.optim import Adam
-from dialogsystem.models.kgqueryextract import KGQueryMPNN
+from models.kgqueryextract import KGQueryMPNN
 from models.GraphEmbedder import LMEmbedder,GraphDataEmbedder
 from models.triples2text import Triples2TextSystem
 from transformers import T5EncoderModel, T5Tokenizer
@@ -54,6 +54,10 @@ class QASystem(LightningModule):
         loss = outputs[0]
         self.log(f"{log_string}_loss",loss.item())
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        batched_triples, batched_targets = batch
+        return super().validation_step(batched_triples, batched_targets, "test")
 
     def configure_optimizers(self):
         return Adam(self.parameters(), self.lr)
