@@ -17,13 +17,13 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=1, help='batchsize')
     parser.add_argument('--pretrained_model_loc', type=str, default=None, help='folder containing any pretrained model weight')
     parser.add_argument('--lr', type=float, default=1e-5, help='the learning rate used by the optimizer')
-    parser.add_argument('--model_output_path', type=str, default='dialogsystem/trained_models/model.ckpt',help='Where model is stored after training')
-    parser.add_argument('--debug', type=bool, default=True, help='use small training set and disable logging for quickfire testing')
-    parser.add_argument('--num_gpus', type=int, default=0,help='number of gpus to be used')
+    parser.add_argument('--model_output_path', type=str, default='/data/model.ckpt',help='Where model is stored after training')
+    parser.add_argument('--debug', default=False,action='store_true', help='use small training set and disable logging for quickfire testing')
+    parser.add_argument('--num_gpus', type=int, default=4,help='number of gpus to be used')
     return parser.parse_args()
 
 if __name__=='__main__':
-    args = parse_arguments()
+    args = parse_arguments()    
     if args.debug:
         logger = None
     else:
@@ -34,7 +34,7 @@ if __name__=='__main__':
         model = Triples2TextSystem(args.base_model,args.lr)
         model.setup_train()  
         print("model setup")
-        data = di.load_kelm_data()
+        data = di.load_kelm_data("/data/kelm_generated_corpus.jsonl")
         train,test,val = di.split_data(data,0.9,0.05,0.05)
         train_dataset,test_dataset,val_dataset = KELMDataset(train),KELMDataset(test),KELMDataset(val)
         print("datasets setup")
