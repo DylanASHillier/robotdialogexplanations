@@ -9,3 +9,5 @@ torch-scatter
 torch-sparse
 torch-geometric
 Levenshtein
+datasets
+neptune-pytorch-lightning
