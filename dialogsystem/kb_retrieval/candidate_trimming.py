@@ -28,7 +28,6 @@ class CandidateGenerator():
         '''
         Uses the self.scores dictionary and returns the self.candidate_size - top scoring entity_id's
         '''
-        print(self.scores)
         return sorted(self.scores.copy(), key=self.scores.get, reverse=True)[:self.candidate_size]
 
     def trim(self, query, entities):
@@ -48,4 +47,5 @@ class CandidateGenerator():
                     else:
                         self.scores[entity_id]=score
         entity_ids = self._topk()
+        self.scores = {} ## reset scores
         return entity_ids
