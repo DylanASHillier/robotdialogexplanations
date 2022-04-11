@@ -11,3 +11,4 @@ torch-geometric
 Levenshtein
 datasets
 neptune-pytorch-lightning
+urllib3

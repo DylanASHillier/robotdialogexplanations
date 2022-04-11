@@ -8,7 +8,7 @@ class CandidateGenerator():
     Class for finding words that are similar to entities in text, given a list of entities.
     Intended to be used with smaller KGs that have a reasonable amount of entities to do this over.
     '''
-    def __init__(self,candidate_size,candidate_threshold=None):
+    def __init__(self,candidate_size,candidate_threshold=0.8):
         '''
         candidate_size: int, the maximum number of candidates output
         candidate_threshold: float?, minimum score on similarity metric to be used
@@ -52,6 +52,7 @@ class CandidateGenerator():
                         self.scores[entity_id]=max(self.scores[entity_id],score)
                     else:
                         self.scores[entity_id]=score
+        print(self.scores)
         entity_ids = self._topk()
         self.scores = {} ## reset scores
         return entity_ids
