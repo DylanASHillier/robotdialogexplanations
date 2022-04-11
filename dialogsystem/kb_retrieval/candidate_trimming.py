@@ -1,7 +1,7 @@
 from torch.nn import Module
 import Levenshtein
+import nltk
 
-### model from: "Global Entity Disambiguation with Pretrained Contextualized Embeddings of Words and Entities" - Yamada 2020
 
 class CandidateGenerator():
     '''
@@ -33,12 +33,18 @@ class CandidateGenerator():
     def trim(self, query, entities):
         '''
         Arguments:
-            Query: list[mentions]
+            Query: string
             Entities: dict[alias -> entity_id]
         Returns:
             list[entity_ids]
         '''
-        for mention in query:
+        tokens = nltk.word_tokenize(query)
+        tagged = nltk.pos_tag(tokens,tagset='universal')
+        mentions = []
+        for word,part in tagged:
+            if part in ["ADJ","ADP","NOUN","NUM","VERB","X"]:
+                mentions.append(word)
+        for mention in mentions:
             for alias,entity_id in entities.items():
                 score = self._similarity(mention,alias)
                 if self.candidate_threshold is None or score > self.candidate_threshold:
