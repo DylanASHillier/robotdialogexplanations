@@ -1,10 +1,10 @@
 from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear
-from torch import cat, tanh, mean
-from networkx import compose_all, ego_graph, get_edge_attributes, get_node_attributes
+from torch import cat, tanh, mean, no_grad, tensor
+from networkx import compose_all, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph
 from torch_geometric.utils import from_networkx
-from torch_geometric.transforms import LineGraph
+# from torch_geometric.transforms import LineGraph
 from transformers import T5ForConditionalGeneration, AutoTokenizer
 from tqdm import tqdm
 
@@ -25,17 +25,19 @@ class LMEmbedder(Module):
         self.max_batchsize=max_batchsize
 
     def forward(self, text):
-        if type(text) is str:
-            ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
-            output = self.encoder(ttext)
-            return mean(output[0])
-        else:
-            texts = [text[i:i+self.max_batchsize] for i in range(0,len(text),self.max_batchsize)]
-            outputs = []
-            for text in tqdm(texts):
+        with no_grad():
+            if type(text) is str:
                 ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
-                outputs.append(self.encoder(ttext)[0])
-            return mean(cat(outputs))
+                output = self.encoder(ttext)
+                return mean(output[0])
+            else:
+                ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
+                ttexts = [ttext[i:i+self.max_batchsize] for i in range(0,len(ttext),self.max_batchsize)]
+                outputs = []
+                for ttext in tqdm(ttexts):
+                    outputs.append(self.encoder(ttext)[0])
+                out = mean(cat(outputs),dim=1)
+                return out
         
 
 class JointEmbedder(Module):
@@ -107,13 +109,34 @@ class GraphTransformer(Module):
         '''
         node_attributes, edge_attributes = self.embed(nxgraph)
         for edge in edge_attributes: # combine embeddings for nodes and edges
-            edge_attributes[edge]=cat[edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]
-        data = from_networkx(nxgraph,None,edge_attributes)
+            edge_attributes[edge]=cat([edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]).tolist()
+        # set_edge_attributes(nxgraph,edge_attributes,'embedding')
+        lg = line_graph(nxgraph)
+        set_node_attributes(lg,edge_attributes,'embedding')
+        set_node_attributes(lg,get_edge_attributes(nxgraph,'relevance_label'),'relevance_label')
+        e_a = get_edge_attributes(nxgraph,'relevance_label')
+        for node in lg:
+            if node not in e_a.keys():
+                print(node)
+                
+                
+        # e_a = get_edge_attributes(nxgraph,'relevance_label')
+        # set_edge_attributes(nxgraph,{key:tensor([e_a[key]]) for key in e_a},'label_embedding')
+        data = from_networkx(lg,group_node_attrs=['embedding','relevance_label'])
         edge_index = data.edge_index
-        data = LineGraph()(data)
+        # data = LineGraph()(data)
         return data, edge_index
 
     def add_query(self, graph_data, query):
         query_embedding = self.lm_embedder(query)
         graph_data.x = cat([graph_data.x,query_embedding.expand((graph_data.x.size(0),-1))], dim=1) ## concats on query embedding
         return graph_data
+
+if __name__ == '__main__':
+    from networkx import DiGraph
+    nxgraph = DiGraph()
+    nxgraph.add_nodes_from(["hi","hello","welcome","greetings","don't","ghosted"])
+    nxgraph.add_edge("hi","hello",label="is_same",relevance_label=4)
+    nxgraph.add_edge("welcome","hi",label="is_same",relevance_label=2)
+    gt = GraphTransformer()
+    print(gt(nxgraph))

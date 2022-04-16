@@ -31,6 +31,7 @@ class GraphTrainDataset(Dataset):
             elif ds=='coqa':
                 text_ds = qtext.QtextCoQA("train")
             graph_files = os.listdir(raw_filepath+'/'+ds)
+            graph_files.remove("README.md")
             self.init_jsons += [(text_ds[get_index(e)][0],raw_filepath+'/'+ds+'/'+e)  for i,e in enumerate(graph_files)]
         super(GraphTrainDataset, self).__init__(root,transform,pre_transform,pre_filter)
 
