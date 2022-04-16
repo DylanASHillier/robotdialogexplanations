@@ -2,7 +2,7 @@ from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear
 from torch import cat, tanh, mean, no_grad, tensor
-from networkx import compose_all, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph
+from networkx import compose_all, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
 from torch_geometric.utils import from_networkx
 # from torch_geometric.transforms import LineGraph
 from transformers import T5ForConditionalGeneration, AutoTokenizer
@@ -29,7 +29,7 @@ class LMEmbedder(Module):
             if type(text) is str:
                 ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
                 output = self.encoder(ttext)
-                return mean(output[0])
+                return mean(output[0],dim=1)
             else:
                 ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
                 ttexts = [ttext[i:i+self.max_batchsize] for i in range(0,len(ttext),self.max_batchsize)]
@@ -59,6 +59,18 @@ class JointEmbedder(Module):
         for layer in self.layers:
             x = tanh(layer(x))
         return x
+
+def _switch_dict(attribute_dict):
+    """
+    args:
+        attribute_dict: {(u,v):atts}
+    returns:
+        {(v,u):atts}
+    """
+    out_dict = {}
+    for k,v in attribute_dict.items():
+        out_dict[(k[1],k[0])]=v
+    return out_dict
 
 class GraphTransformer(Module):
     def __init__(self,lm_string="google/byt5-small") -> None:
@@ -113,11 +125,12 @@ class GraphTransformer(Module):
         # set_edge_attributes(nxgraph,edge_attributes,'embedding')
         lg = line_graph(nxgraph)
         set_node_attributes(lg,edge_attributes,'embedding')
-        set_node_attributes(lg,get_edge_attributes(nxgraph,'relevance_label'),'relevance_label')
-        e_a = get_edge_attributes(nxgraph,'relevance_label')
-        for node in lg:
-            if node not in e_a.keys():
-                print(node)
+        if not is_directed(nxgraph):
+            set_node_attributes(lg,_switch_dict(edge_attributes),'embedding')
+        rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
+        set_node_attributes(lg,rel_attributes,'relevance_label')
+        if not is_directed(nxgraph):
+            set_node_attributes(lg,_switch_dict(rel_attributes),'relevance_label')
                 
                 
         # e_a = get_edge_attributes(nxgraph,'relevance_label')
@@ -133,10 +146,12 @@ class GraphTransformer(Module):
         return graph_data
 
 if __name__ == '__main__':
-    from networkx import DiGraph
-    nxgraph = DiGraph()
+    from networkx import DiGraph, Graph
+    nxgraph = Graph()
     nxgraph.add_nodes_from(["hi","hello","welcome","greetings","don't","ghosted"])
     nxgraph.add_edge("hi","hello",label="is_same",relevance_label=4)
     nxgraph.add_edge("welcome","hi",label="is_same",relevance_label=2)
     gt = GraphTransformer()
-    print(gt(nxgraph))
+    graph,_ = gt(nxgraph)
+    graph = gt.add_query(graph, "help")
+    print(graph)
