@@ -3,8 +3,8 @@ from torch.nn.modules.container import ModuleList
 from torch.nn import Linear
 from torch import cat, tanh, mean, no_grad, tensor
 from networkx import compose_all, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
-from torch_geometric.utils import from_networkx
-# from torch_geometric.transforms import LineGraph
+from torch_geometric.utils import from_networkx, remove_self_loops
+from torch_geometric.transforms import LineGraph
 from transformers import T5ForConditionalGeneration, AutoTokenizer
 from tqdm import tqdm
 
@@ -123,21 +123,19 @@ class GraphTransformer(Module):
         for edge in edge_attributes: # combine embeddings for nodes and edges
             edge_attributes[edge]=cat([edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]).tolist()
         # set_edge_attributes(nxgraph,edge_attributes,'embedding')
-        lg = line_graph(nxgraph)
-        set_node_attributes(lg,edge_attributes,'embedding')
+        # lg = line_graph(nxgraph)
+        set_edge_attributes(nxgraph,edge_attributes,'embedding')
         if not is_directed(nxgraph):
-            set_node_attributes(lg,_switch_dict(edge_attributes),'embedding')
+            set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
         rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
-        set_node_attributes(lg,rel_attributes,'relevance_label')
+        set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
         if not is_directed(nxgraph):
-            set_node_attributes(lg,_switch_dict(rel_attributes),'relevance_label')
-                
-                
-        # e_a = get_edge_attributes(nxgraph,'relevance_label')
-        # set_edge_attributes(nxgraph,{key:tensor([e_a[key]]) for key in e_a},'label_embedding')
-        data = from_networkx(lg,group_node_attrs=['embedding','relevance_label'])
+            set_edge_attributes(nxgraph,_switch_dict(rel_attributes),'relevance_label')
+        data = from_networkx(nxgraph,group_edge_attrs=['embedding','relevance_label'])
+        if not is_directed(nxgraph):
+            data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
         edge_index = data.edge_index
-        # data = LineGraph()(data)
+        data = LineGraph()(data)
         return data, edge_index
 
     def add_query(self, graph_data, query):
@@ -151,6 +149,13 @@ if __name__ == '__main__':
     nxgraph.add_nodes_from(["hi","hello","welcome","greetings","don't","ghosted"])
     nxgraph.add_edge("hi","hello",label="is_same",relevance_label=4)
     nxgraph.add_edge("welcome","hi",label="is_same",relevance_label=2)
+    nxgraph.add_edge("hello","hi",label="is_same",relevance_label=3)
+    nxgraph.add_edge("hi","hi",label="uh-oh",relevance_label=5)
+    nxgraph.add_edge("don't","don't",label="welp",relevance_label=2)
+    nxgraph.add_edge("ghosted","ghosted",label="hmm",relevance_label=4)
+    nxgraph.add_edge("greetings","greetings",label="I need osmebody", relevance_label=2)
+    print(nxgraph.nodes(data=True))
+    print(nxgraph.edges(data=True))
     gt = GraphTransformer()
     graph,_ = gt(nxgraph)
     graph = gt.add_query(graph, "help")
