@@ -1,6 +1,6 @@
 from multiprocessing import Pool
-from networkx import subgraph, single_source_shortest_path_length, compose
-from networkx import Graph
+from networkx import subgraph, single_source_shortest_path_length, compose, is_directed
+from networkx import DiGraph, Graph, is_directed
 
 def extract_nodes(tup):
     nxg,ec,k = tup
@@ -9,11 +9,17 @@ def extract_nodes(tup):
 
 class GraphConstructor():
     def __init__(self) -> None:
-        self.graph = Graph()
+        self.graph = DiGraph()
 
     def input_nx_graph_with_trimming(self,nxgraph,entity_candidates,k):
+        if is_directed(nxgraph):
+            undgraph = Graph(nxgraph)
+        else:
+            undgraph = nxgraph
+            if is_directed(self.graph):
+                self.graph = Graph(self.graph)
         pool = Pool()
-        nodes = pool.map(extract_nodes,[(nxgraph,ec,k) for ec in entity_candidates])
+        nodes = pool.map(extract_nodes,[(undgraph,ec,k) for ec in entity_candidates])
         pool.close()
         pool.join()
         nodes = [node for nodelist in nodes for node in nodelist]
