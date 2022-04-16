@@ -1,5 +1,6 @@
 from rdflib import Graph, Literal
-from networkx import Graph as nxGraph
+from networkx import DiGraph as nxDiGraph
+from networkx import Graph as nxUdGraph
 import rdflib
 from requests import get, post
 from SPARQLWrapper import SPARQLWrapper2
@@ -82,7 +83,7 @@ class DataExtractor():
 
         return triples
 
-    def triples_etc_from_conceptnet_csv(self, csv, target='networkx'):
+    def triples_etc_from_conceptnet_csv(self, csv, target='networkx', directed=True):
         '''
         Copied from https://github.com/INK-USC/KagNet
         returns relations, entities, triples for conceptnet
@@ -98,7 +99,10 @@ class DataExtractor():
         if target == 'rdflib':
             g = Graph()
         else:
-            g = nxGraph()
+            if directed:
+                g = nxDiGraph()
+            else:
+                g = nxUdGraph()
         with open(csv, 'r', encoding="utf8") as f:
             for line in tqdm.tqdm(f):
                 ls = line.split('\t')

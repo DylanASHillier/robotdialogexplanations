@@ -52,7 +52,6 @@ class CandidateGenerator():
                         self.scores[entity_id]=max(self.scores[entity_id],score)
                     else:
                         self.scores[entity_id]=score
-        print(self.scores)
         entity_ids = self._topk()
         self.scores = {} ## reset scores
         return entity_ids
