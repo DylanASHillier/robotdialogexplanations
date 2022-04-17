@@ -7,6 +7,7 @@ from models.GraphEmbedder import GraphTransformer
 from data import qtext
 from re import search
 from tqdm import tqdm
+from zipfile import ZipFile
 
 def get_index(graphname):
     match = search('\d+',graphname)
@@ -16,9 +17,10 @@ def get_index(graphname):
         raise ValueError(f"{graphname} does not contain a number")
 
 class GraphTrainDataset(Dataset):
-    def __init__(self,root="datasets/processed_ds", raw_filepath='datasets', datasets = ['ropes','coqa','squad'],graph_transformation_LM='google/byt5-small',transform=None, pre_transform=None, pre_filter=None) -> None:
+    def __init__(self,root="datasets/processed_ds", raw_filepath='datasets', datasets = ['ropes','coqa','squad'],graph_transformation_LM='t5-small',transform=None, pre_transform=None, pre_filter=None) -> None:
         """
         graph_transformation_LM
+        To fit onto disk I call `find . -type f -name "data_*.pt" -execdir zip -m '{}.zip' '{}' \; `
         """
         self.graphembedder=GraphTransformer(graph_transformation_LM)  
         self.init_jsons = []
@@ -38,7 +40,7 @@ class GraphTrainDataset(Dataset):
 
     @property
     def processed_file_names(self) -> Union[str, List[str], Tuple]:
-        return [f"data_{i}.pt" for i,_ in enumerate(self.init_jsons)]
+        return [f"data_{i}.pt.zip" for i,_ in enumerate(self.init_jsons)]
 
     @property
     def raw_dir(self) -> str:
@@ -65,7 +67,10 @@ class GraphTrainDataset(Dataset):
             idx += 1
 
     def get(self, idx):
-        return load(os.path.join(self.processed_dir, f'data_{idx}.pt'))
+        with ZipFile(os.path.join(self.processed_dir, f'data_{idx}.pt.zip')) as zf:
+            for file in zf.namelist():
+                with zf.open(file) as f:
+                    return load(f)
 
     def len(self):
         return len(self.init_jsons)
