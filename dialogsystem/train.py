@@ -4,9 +4,10 @@ from torch.utils.data import DataLoader
 from data.dataimport import DataImporter
 from data.kelmDataset import KELMDataset,Kelm_dataloader
 import argparse
-from data.qtext import QtextCoQA, QtextRopes, QtextSQUAD
+from data.graphDataset import GraphTrainDataset
 from models.triples2text import Triples2TextSystem
-from models.qasystem import QASystem
+from models.kgqueryextract import LightningKGQueryMPNN
+import torch_geometric
 
 #parse arguments for model training.
 def parse_arguments():
@@ -41,14 +42,13 @@ if __name__=='__main__':
         train_dl = Kelm_dataloader(model.tokenizer,train_dataset,args.batch_size)
         val_dl =  Kelm_dataloader(model.tokenizer,val_dataset,args.batch_size)
     elif args.system_type == 'gnn':
-        train_datasets = [QtextSQUAD('train'),QtextCoQA('train'),QtextRopes('train')]
-        val_datasets = [QtextSQUAD('validation'),QtextCoQA('validation'),QtextRopes('validation')]
+        train_dataset = GraphTrainDataset()
         print("dataset setup")
-        model = QASystem(args.pretrained_model_loc,0,100)
+        model = LightningKGQueryMPNN(1024)
         model.setup_train()
         print("model setup")
-        train_dl = DataLoader(train_datasets,args.batch_size,num_workers=4)
-        val_dl = DataLoader(val_datasets,args.batch_size,num_workers=4)
+        train_dl = torch_geometric.data.DataLoader(train_dataset,args.batch_size,num_workers=4)
+        val_dl = None
     if args.num_gpus>0:
         trainer = Trainer(logger=logger,log_every_n_steps=10,max_epochs=args.num_epoch,gpus=args.num_gpus,enable_checkpointing=False,strategy='ddp')
     else:
