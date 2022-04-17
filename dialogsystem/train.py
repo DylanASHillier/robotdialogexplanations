@@ -18,7 +18,7 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=1, help='batchsize')
     parser.add_argument('--pretrained_model_loc', type=str, default=None, help='folder containing any pretrained model weight')
     parser.add_argument('--lr', type=float, default=1e-5, help='the learning rate used by the optimizer')
-    parser.add_argument('--model_output_path', type=str, default='/data/model.ckpt',help='Where model is stored after training')
+    parser.add_argument('--model_output_path', type=str, default='model.ckpt',help='Where model is stored after training')
     parser.add_argument('--debug', default=False,action='store_true', help='use small training set and disable logging for quickfire testing')
     parser.add_argument('--num_gpus', type=int, default=4,help='number of gpus to be used')
     return parser.parse_args()
@@ -42,10 +42,9 @@ if __name__=='__main__':
         train_dl = Kelm_dataloader(model.tokenizer,train_dataset,args.batch_size)
         val_dl =  Kelm_dataloader(model.tokenizer,val_dataset,args.batch_size)
     elif args.system_type == 'gnn':
-        train_dataset = GraphTrainDataset()
+        train_dataset = GraphTrainDataset("datasets")
         print("dataset setup")
         model = LightningKGQueryMPNN(1024)
-        model.setup_train()
         print("model setup")
         train_dl = torch_geometric.data.DataLoader(train_dataset,args.batch_size,num_workers=4)
         val_dl = None
