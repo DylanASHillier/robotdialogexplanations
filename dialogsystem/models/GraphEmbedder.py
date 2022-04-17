@@ -101,7 +101,7 @@ class GraphTransformer(Module):
         #     new_node_attributes[node]=self.lm_embedder(node_attributes[node])
         edge_attributes = get_edge_attributes(nxgraph,'label')
         keys = edge_attributes.keys()
-        values = [f" subject: {node_attributes[key[0]]}, relation: {edge_attributes[key]}, object: {node_attributes[key[1]]}" for key in keys]
+        values = [f" {node_attributes[key[0]]}, {edge_attributes[key]}, {node_attributes[key[1]]}" for key in keys]
         values = self.lm_embedder(values)
         edge_attributes = {key: values[i] for i,key in enumerate(keys)}
         # edge_attributes = {key: self.lm_embedder(value) for key, value in edge_attributes.items()}
@@ -151,12 +151,13 @@ if __name__ == '__main__':
     nxgraph.add_nodes_from(["hi","hello","welcome","greetings","don't","ghosted"])
     nxgraph.add_edge("hi","hello",label="is_same",relevance_label=4)
     nxgraph.add_edge("welcome","hi",label="is_same",relevance_label=2)
+    nxgraph.add_edge("welcome","greetings",label="don't",relevance_label=4)
     nxgraph.add_edge("hello","hi",label="is_same",relevance_label=3)
     nxgraph.add_edge("hi","hi",label="uh-oh",relevance_label=5)
     nxgraph.add_edge("don't","don't",label="welp",relevance_label=2)
     nxgraph.add_edge("ghosted","ghosted",label="hmm",relevance_label=4)
     nxgraph.add_edge("greetings","greetings",label="I need osmebody", relevance_label=2)
-    gt = GraphTransformer(lm_string="google/byt5-small")
+    gt = GraphTransformer(lm_string="t5-small")
     graph,_ = gt(nxgraph)
     graph = gt.add_query(graph, "help")
     print(graph)
