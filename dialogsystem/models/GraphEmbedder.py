@@ -91,23 +91,23 @@ class GraphTransformer(Module):
         '''
         # node_attributes = get_node_attributes(nxgraph,'label')
         node_attributes = {node:node for node in nxgraph.nodes} ## due to error not saving node attributes as labels
-        keys = node_attributes.keys()
-        values = [node_attributes[key] for key in keys]
-        values = self.lm_embedder(values)
-        node_attributes = {key: values[i] for i,key in enumerate(keys)}
+        # keys = node_attributes.keys()
+        # values = [node_attributes[key] for key in keys]
+        # values = self.lm_embedder(values)
+        # node_attributes = {key: values[i] for i,key in enumerate(keys)}
         # node_attributes = {key: self.lm_embedder(value) for key,value in node_attributes.items()}
 
         # for node in node_attributes:
         #     new_node_attributes[node]=self.lm_embedder(node_attributes[node])
         edge_attributes = get_edge_attributes(nxgraph,'label')
         keys = edge_attributes.keys()
-        values = [edge_attributes[key] for key in keys]
+        values = [f" subject: {node_attributes[key[0]]}, relation: {edge_attributes[key]}, object: {node_attributes[key[1]]}" for key in keys]
         values = self.lm_embedder(values)
         edge_attributes = {key: values[i] for i,key in enumerate(keys)}
         # edge_attributes = {key: self.lm_embedder(value) for key, value in edge_attributes.items()}
         # for edge in edge_attributes:
         #     new_edge_attributes[edge]=self.lm_embedder(edge_attributes[edge])
-        return node_attributes,edge_attributes        
+        return edge_attributes        
 
     def forward(self,nxgraph):
         '''
@@ -119,11 +119,13 @@ class GraphTransformer(Module):
 
         use the edge_index to reverse the line graph transform (for checking the text on the original triple).
         '''
-        node_attributes, edge_attributes = self.embed(nxgraph)
-        for edge in edge_attributes: # combine embeddings for nodes and edges
-            edge_attributes[edge]=cat([edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]).tolist()
-        # set_edge_attributes(nxgraph,edge_attributes,'embedding')
-        # lg = line_graph(nxgraph)
+        edge_attributes = self.embed(nxgraph)
+        for edge in edge_attributes:
+            edge_attributes[edge] = edge_attributes[edge].tolist()
+        # for edge in edge_attributes: # combine embeddings for nodes and edges
+        #     edge_attributes[edge]=cat([edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]).tolist()
+        #    # set_edge_attributes(nxgraph,edge_attributes,'embedding')
+        #    # lg = line_graph(nxgraph)
         set_edge_attributes(nxgraph,edge_attributes,'embedding')
         if not is_directed(nxgraph):
             set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
@@ -154,9 +156,8 @@ if __name__ == '__main__':
     nxgraph.add_edge("don't","don't",label="welp",relevance_label=2)
     nxgraph.add_edge("ghosted","ghosted",label="hmm",relevance_label=4)
     nxgraph.add_edge("greetings","greetings",label="I need osmebody", relevance_label=2)
-    print(nxgraph.nodes(data=True))
-    print(nxgraph.edges(data=True))
-    gt = GraphTransformer()
+    gt = GraphTransformer(lm_string="google/byt5-small")
     graph,_ = gt(nxgraph)
     graph = gt.add_query(graph, "help")
     print(graph)
+    print(graph.x)
