@@ -1,6 +1,6 @@
 from torch.nn import Module, ModuleList
 from torch_geometric.nn import GATv2Conv
-from torch.nn import Conv1d
+from torch.nn import Conv1d, ELU, MSELoss
 from torch import sigmoid, topk
 from pytorch_lightning import LightningModule
 
@@ -16,23 +16,34 @@ class LightningKGQueryMPNN(LightningModule):
         super(LightningKGQueryMPNN,self).__init__()
         self.final_layer = Conv1d(embedding_size,1,1)
         self.hidden_layers = ModuleList([GATv2Conv(embedding_size,embedding_size,heads=16, concat=False, dropout=0.2,) for i in range(num_layers)])
-        self.activations = elu
+        self.activations = [ELU() for i in range(num_layers-1)]+[lambda x:x]
         self.k = k
+        self.loss = MSELoss()
         self.save_hyperparameters()
 
     def forward(self, x, edge_index, labels):
         for layer in self.hidden_layers:
             x = layer(x,edge_index)
         x = self.final_layer(x)
-        return topk(x,10)
+        x = sigmoid(x)
+        return topk(x,self.k)[1]
 
     def training_step(self, batch):
         x = batch.x
+        y = batch.y
         edge_index = batch.edge_index
-        for layer in self.hidden_layers:
+        for i,layer in enumerate(self.hidden_layers):
             x = layer(x,edge_index)
+            x = self.activations[i](x)
         x = self.final_layer(x)
+        y_pred = sigmoid(x)*6
+        loss = self.loss(y_pred,y)
+        self.log("train_mse_loss",loss.item())
+        return loss
+
+        
 
 
 if __name__ == '__main__':
-    print(LightningKGQueryMPNN(1000))
+    model = LightningKGQueryMPNN(1000)
+    
