@@ -70,7 +70,12 @@ class GraphTrainDataset(Dataset):
         with ZipFile(os.path.join(self.processed_dir, f'data_{idx}.pt.zip')) as zf:
             for file in zf.namelist():
                 with zf.open(file) as f:
-                    return load(f)
+                    graph = load(f)
+                    x = graph.x[:,:graph.x.size(1)-1]
+                    y = graph.x[:,-1]
+                    graph.x = x
+                    graph.y = y
+                    return graph
 
     def len(self):
         return len(self.init_jsons)
