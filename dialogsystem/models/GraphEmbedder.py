@@ -99,43 +99,59 @@ class GraphTransformer(Module):
         edge_attributes = {key: values[i].tolist() for i,key in enumerate(keys)}
         return edge_attributes
 
-    def _update_attributes(self, nxgraph, edge_attributes):
+    def _update_attributes(self, nxgraph, edge_attributes, relevance_labels=False):
         '''
         updates the edge attributes of the graph with the new embedded edge attributes
+        Arguments:
+            nxgraph: networkx graph instance,
+            edge_attributes: {(u,v):atts},
+            relevance_labels: bool, if true, the edge attributes are updated with the relevance labels
         ''' 
         set_edge_attributes(nxgraph,edge_attributes,'embedding')
         if not is_directed(nxgraph):
             set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
-        rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
-        set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
-        if not is_directed(nxgraph):
-            set_edge_attributes(nxgraph,_switch_dict(rel_attributes),'relevance_label')
+        if relevance_labels:
+            rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
+            set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
+            if not is_directed(nxgraph):
+                set_edge_attributes(nxgraph,_switch_dict(rel_attributes),'relevance_label')
         return nxgraph
 
-    def _transform(self, nxgraph):
+    def transform(self, nxgraph, relevance_label=False):
         '''
         Transforms the graph into a line graph from networkx
+        Arguments:
+            nxgraph: networkx graph instance,
+            relevance_label: boolean, whether to add relevance labels to the graph
         '''
-        data = from_networkx(nxgraph,group_edge_attrs=['embedding','relevance_label'])
+        if relevance_label:
+            data = from_networkx(nxgraph,group_edge_attrs=['embedding','relevance_label'])
+        else:
+            data = from_networkx(nxgraph,group_edge_attrs=['embedding'])
         if not is_directed(nxgraph):
             data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
         edge_index = data.edge_index
         data = LineGraph()(data)
         return data, edge_index
 
-    def update(self, original_graph, new_graph):
+    def update(self, original_graph, new_graph, relevance_label=False):
         '''
         used to update the graph with new triples
+        Arguments:
+            original_graph: networkx graph instance,
+            new_graph: networkx graph instance,
+            relevance_label: boolean, whether to utilise relevance labels as attributes
         '''
         new_graph = compose(original_graph,new_graph)
         edge_attributes = self.embed(new_graph)
-        new_graph = self._update_attributes(new_graph,edge_attributes)
+        new_graph = self._update_attributes(new_graph,edge_attributes, relevance_label)
         return new_graph
 
-    def forward(self,nxgraph):
+    def forward(self,nxgraph, relevance_label=True):
         '''
         arguments:
-            nxgraph: a networkx (knowledge) graph
+            nxgraph: a networkx (knowledge) graph,
+            relevance_label: boolean, whether to utilise relevance labels
         returns:
             data, edge_index (torch_geometric format)
         Changes the networkx graph into a line graph.
@@ -143,8 +159,8 @@ class GraphTransformer(Module):
         use the edge_index to reverse the line graph transform (for checking the text on the original triple).
         '''
         edge_attributes = self.embed(nxgraph)
-        nxgraph = self._update_attributes(nxgraph,edge_attributes)
-        return self._transform(nxgraph)
+        nxgraph = self._update_attributes(nxgraph,edge_attributes, relevance_label = relevance_label)
+        return self.transform(nxgraph, relevance_label = relevance_label)
 
     def add_query(self, graph_data, query):
         query_embedding = self.lm_embedder(query)
@@ -167,9 +183,9 @@ if __name__ == '__main__':
     nxgraph = gt._update_attributes(nxgraph,gt.embed(nxgraph))
     newgraph = DiGraph()
     newgraph.add_nodes_from(["hi","salut"])
-    newgraph.add_edge("hi","salut",label="is_same",relevance_label=4)
+    newgraph.add_edge("hi","salut",label="is_same")
     newgraph = gt.update(nxgraph,newgraph)
-    graph, edge_index = gt._transform(newgraph)
+    graph, edge_index = gt.transform(newgraph,relevance_label=False)
     graph = gt.add_query(graph, "help")
     print(graph)
     print(graph.x)
