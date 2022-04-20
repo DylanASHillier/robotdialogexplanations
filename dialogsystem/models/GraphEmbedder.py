@@ -2,7 +2,7 @@ from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear
 from torch import cat, tanh, mean, no_grad, tensor
-from networkx import compose_all, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
+from networkx import compose, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
 from torch_geometric.utils import from_networkx, remove_self_loops
 from torch_geometric.transforms import LineGraph
 from transformers import T5ForConditionalGeneration, AutoTokenizer
@@ -75,7 +75,9 @@ def _switch_dict(attribute_dict):
 class GraphTransformer(Module):
     def __init__(self,lm_string="google/byt5-small") -> None:
         """
-        lm_string: name of encoder decoder language model used for embedding
+        Class for handling embedding of networkx graph with a language model, transformation to torch_geometric, and query embedding
+        Arguments:
+            lm_string: name of encoder decoder language model used for embedding the query and graph
         """
         super(GraphTransformer,self).__init__()
         lmodel = T5ForConditionalGeneration.from_pretrained(lm_string).encoder
@@ -89,25 +91,46 @@ class GraphTransformer(Module):
             graph: networkx graph instance,
             query: string, query used
         '''
-        # node_attributes = get_node_attributes(nxgraph,'label')
-        node_attributes = {node:node for node in nxgraph.nodes} ## due to error not saving node attributes as labels
-        # keys = node_attributes.keys()
-        # values = [node_attributes[key] for key in keys]
-        # values = self.lm_embedder(values)
-        # node_attributes = {key: values[i] for i,key in enumerate(keys)}
-        # node_attributes = {key: self.lm_embedder(value) for key,value in node_attributes.items()}
-
-        # for node in node_attributes:
-        #     new_node_attributes[node]=self.lm_embedder(node_attributes[node])
+        node_attributes = {node:node for node in nxgraph.nodes}
         edge_attributes = get_edge_attributes(nxgraph,'label')
         keys = edge_attributes.keys()
         values = [f" {node_attributes[key[0]]}, {edge_attributes[key]}, {node_attributes[key[1]]}" for key in keys]
         values = self.lm_embedder(values)
-        edge_attributes = {key: values[i] for i,key in enumerate(keys)}
-        # edge_attributes = {key: self.lm_embedder(value) for key, value in edge_attributes.items()}
-        # for edge in edge_attributes:
-        #     new_edge_attributes[edge]=self.lm_embedder(edge_attributes[edge])
-        return edge_attributes        
+        edge_attributes = {key: values[i].tolist() for i,key in enumerate(keys)}
+        return edge_attributes
+
+    def _update_attributes(self, nxgraph, edge_attributes):
+        '''
+        updates the edge attributes of the graph with the new embedded edge attributes
+        ''' 
+        set_edge_attributes(nxgraph,edge_attributes,'embedding')
+        if not is_directed(nxgraph):
+            set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
+        rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
+        set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
+        if not is_directed(nxgraph):
+            set_edge_attributes(nxgraph,_switch_dict(rel_attributes),'relevance_label')
+        return nxgraph
+
+    def _transform(self, nxgraph):
+        '''
+        Transforms the graph into a line graph from networkx
+        '''
+        data = from_networkx(nxgraph,group_edge_attrs=['embedding','relevance_label'])
+        if not is_directed(nxgraph):
+            data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
+        edge_index = data.edge_index
+        data = LineGraph()(data)
+        return data, edge_index
+
+    def update(self, original_graph, new_graph):
+        '''
+        used to update the graph with new triples
+        '''
+        new_graph = compose(original_graph,new_graph)
+        edge_attributes = self.embed(new_graph)
+        new_graph = self._update_attributes(new_graph,edge_attributes)
+        return new_graph
 
     def forward(self,nxgraph):
         '''
@@ -120,25 +143,8 @@ class GraphTransformer(Module):
         use the edge_index to reverse the line graph transform (for checking the text on the original triple).
         '''
         edge_attributes = self.embed(nxgraph)
-        for edge in edge_attributes:
-            edge_attributes[edge] = edge_attributes[edge].tolist()
-        # for edge in edge_attributes: # combine embeddings for nodes and edges
-        #     edge_attributes[edge]=cat([edge_attributes[edge],node_attributes[edge[0]],node_attributes[edge[1]]]).tolist()
-        #    # set_edge_attributes(nxgraph,edge_attributes,'embedding')
-        #    # lg = line_graph(nxgraph)
-        set_edge_attributes(nxgraph,edge_attributes,'embedding')
-        if not is_directed(nxgraph):
-            set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
-        rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
-        set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
-        if not is_directed(nxgraph):
-            set_edge_attributes(nxgraph,_switch_dict(rel_attributes),'relevance_label')
-        data = from_networkx(nxgraph,group_edge_attrs=['embedding','relevance_label'])
-        if not is_directed(nxgraph):
-            data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
-        edge_index = data.edge_index
-        data = LineGraph()(data)
-        return data, edge_index
+        nxgraph = self._update_attributes(nxgraph,edge_attributes)
+        return self._transform(nxgraph)
 
     def add_query(self, graph_data, query):
         query_embedding = self.lm_embedder(query)
@@ -147,7 +153,7 @@ class GraphTransformer(Module):
 
 if __name__ == '__main__':
     from networkx import DiGraph, Graph
-    nxgraph = Graph()
+    nxgraph = DiGraph()
     nxgraph.add_nodes_from(["hi","hello","welcome","greetings","don't","ghosted"])
     nxgraph.add_edge("hi","hello",label="is_same",relevance_label=4)
     nxgraph.add_edge("welcome","hi",label="is_same",relevance_label=2)
@@ -158,7 +164,12 @@ if __name__ == '__main__':
     nxgraph.add_edge("ghosted","ghosted",label="hmm",relevance_label=4)
     nxgraph.add_edge("greetings","greetings",label="I need osmebody", relevance_label=2)
     gt = GraphTransformer(lm_string="t5-small")
-    graph,_ = gt(nxgraph)
+    nxgraph = gt._update_attributes(nxgraph,gt.embed(nxgraph))
+    newgraph = DiGraph()
+    newgraph.add_nodes_from(["hi","salut"])
+    newgraph.add_edge("hi","salut",label="is_same",relevance_label=4)
+    newgraph = gt.update(nxgraph,newgraph)
+    graph, edge_index = gt._transform(newgraph)
     graph = gt.add_query(graph, "help")
     print(graph)
     print(graph.x)
