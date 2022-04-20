@@ -11,7 +11,13 @@ class GraphConstructor():
     def __init__(self) -> None:
         self.graph = DiGraph()
 
+    def reset(self):
+        self.graph = DiGraph()
+
     def input_nx_graph_with_trimming(self,nxgraph,entity_candidates,k):
+        '''
+        inputs graph, updates internal graph with the nodes and edges of the input graph
+        '''
         if is_directed(nxgraph):
             undgraph = Graph(nxgraph)
         else:
