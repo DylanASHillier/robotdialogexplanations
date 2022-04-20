@@ -18,6 +18,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset',type=str, default='', help='dataset for training, choose from \'ropes\',\'coqa\',\'squad\'')
     parser.add_argument('--num_workers', type=int, default=1, help='number of workers to use for multiprocessing operations')
+    parser.add_argument('--split', type=str, default='train', help="train test or validation split")
     return parser.parse_args()
 
 def batch(items,batchsize):
@@ -59,11 +60,11 @@ if __name__ == '__main__':
     args = parse_arguments()
     ds = None
     if args.dataset=='ropes':
-        ds = qtext.QtextRopes("train")
+        ds = qtext.QtextRopes(args.split)
     elif args.dataset=='squad':
-        ds = qtext.QtextSQUAD("train")
+        ds = qtext.QtextSQUAD(args.split)
     elif args.dataset=='coqa':
-        ds = qtext.QtextCoQA("train")
+        ds = qtext.QtextCoQA(args.split)
     else:
         raise ValueError("dataset arg required")
 
