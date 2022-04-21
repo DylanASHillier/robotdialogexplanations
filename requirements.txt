@@ -12,3 +12,4 @@ Levenshtein
 datasets
 neptune-pytorch-lightning
 urllib3
+pymongo
