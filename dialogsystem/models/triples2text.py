@@ -1,5 +1,5 @@
 from pytorch_lightning import LightningModule
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, T5ForConditionalGeneration
 from torch import mean, stack
 from torch.optim import Adam
 
@@ -7,7 +7,7 @@ class Triples2TextSystem(LightningModule):
     def __init__(self,base_model="t5",lr=1e-5):
         super(Triples2TextSystem,self).__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(base_model)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(base_model)
+        self.model = T5ForConditionalGeneration.from_pretrained(base_model)
         self.lr = lr
         self.save_hyperparameters()
 
@@ -18,8 +18,9 @@ class Triples2TextSystem(LightningModule):
         '''
         input textual triple of shape [batchsize, maximum_length]
         '''
-        input = self.tokenizer(input)
-        outputs = self.model(input)[:,:-len(input)]
+        input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
+        outputs = self.model.generate(input)
+        outputs = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         return outputs
 
     def training_step(self,batch,batch_idx):
