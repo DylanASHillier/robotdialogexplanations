@@ -12,7 +12,7 @@ class DataImporter():
             test_portion: float, portion of data used for evaluating
             val_portion: float, portion of data used for validating
         Example:
-            split_data([0,..,100],0.6,0.1,0.3) would return datasets [0,...,~60],[~61,...,~90],[~91,...100]
+            split_data([0,..,100],0.6,0.1,0.3) would return datasets [0,...,~60],[~61,...,~70],[~71,...100]
         '''
         train_last = int(train_portion*len(data))
         test_last = int(train_last + test_portion*len(data))
