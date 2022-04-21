@@ -17,20 +17,21 @@ class LightningKGQueryMPNN(LightningModule):
         super(LightningKGQueryMPNN,self).__init__()
         self.final_layer = Linear(hidden_dim,1)
         self.init_layer = Linear(embedding_size,hidden_dim)
-        self.hidden_layers = ModuleList([GATv2Conv(hidden_dim,hidden_dim,heads=4, concat=False, dropout=0.2,) for i in range(num_layers)])
+        self.hidden_layers = ModuleList([GATv2Conv(hidden_dim,hidden_dim,heads=heads, concat=False, dropout=0.2,) for i in range(num_layers)])
         self.activations = [ELU() for i in range(num_layers-1)]+[lambda x:x]
         self.k = k
         self.lr = lr
         self.loss = MSELoss()
         self.save_hyperparameters()
 
-    def forward(self, x, edge_index, labels):
+    def forward(self, x, edge_index):
         x = self.init_layer(x)
-        for layer in self.hidden_layers:
+        for i,layer in enumerate(self.hidden_layers):
             x = layer(x,edge_index)
+            x = self.activations[i](x)
         x = self.final_layer(x)
-        x = sigmoid(x)
-        return topk(x,self.k)[1]
+        x = sigmoid(x).squeeze()
+        return topk(x,min(self.k,x.size(0)))[1]
 
     def training_step(self, batch):
         x = batch.x
