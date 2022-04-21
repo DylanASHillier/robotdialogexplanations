@@ -95,11 +95,12 @@ class GraphTransformer(Module):
         edge_attributes = get_edge_attributes(nxgraph,'label')
         keys = edge_attributes.keys()
         values = [f" {node_attributes[key[0]]}, {edge_attributes[key]}, {node_attributes[key[1]]}" for key in keys]
+        edge_labels = {key: values[i] for i,key in enumerate(keys)}
         values = self.lm_embedder(values)
         edge_attributes = {key: values[i].tolist() for i,key in enumerate(keys)}
-        return edge_attributes
+        return edge_attributes, edge_labels
 
-    def _update_attributes(self, nxgraph, edge_attributes, relevance_labels=False):
+    def _update_attributes(self, nxgraph, edge_attributes, edge_labels, relevance_labels=False):
         '''
         updates the edge attributes of the graph with the new embedded edge attributes
         Arguments:
@@ -108,8 +109,10 @@ class GraphTransformer(Module):
             relevance_labels: bool, if true, the edge attributes are updated with the relevance labels
         ''' 
         set_edge_attributes(nxgraph,edge_attributes,'embedding')
+        set_edge_attributes(nxgraph,edge_labels,'edge_label')
         if not is_directed(nxgraph):
             set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
+            set_edge_attributes(nxgraph,_switch_dict(edge_labels),'edge_label')
         if relevance_labels:
             rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
             set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
@@ -125,14 +128,13 @@ class GraphTransformer(Module):
             relevance_label: boolean, whether to add relevance labels to the graph
         '''
         if relevance_label:
-            data = from_networkx(nxgraph,group_edge_attrs=['embedding','relevance_label'])
+            data = from_networkx(nxgraph,group_edge_attrs=['embedding', 'relevance_label'])
         else:
             data = from_networkx(nxgraph,group_edge_attrs=['embedding'])
         if not is_directed(nxgraph):
             data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
-        edge_index = data.edge_index
         data = LineGraph()(data)
-        return data, edge_index
+        return data
 
     def update(self, original_graph, new_graph, relevance_label=False):
         '''
@@ -143,8 +145,8 @@ class GraphTransformer(Module):
             relevance_label: boolean, whether to utilise relevance labels as attributes
         '''
         new_graph = compose(original_graph,new_graph)
-        edge_attributes = self.embed(new_graph)
-        new_graph = self._update_attributes(new_graph,edge_attributes, relevance_label)
+        edge_attributes, edge_labels = self.embed(new_graph)
+        new_graph = self._update_attributes(new_graph, edge_attributes, edge_labels, relevance_label)
         return new_graph
 
     def forward(self,nxgraph, relevance_label=True):
@@ -158,8 +160,8 @@ class GraphTransformer(Module):
 
         use the edge_index to reverse the line graph transform (for checking the text on the original triple).
         '''
-        edge_attributes = self.embed(nxgraph)
-        nxgraph = self._update_attributes(nxgraph,edge_attributes, relevance_label = relevance_label)
+        edge_attributes, edge_labels = self.embed(nxgraph)
+        nxgraph = self._update_attributes(nxgraph, edge_attributes, edge_labels, relevance_label = relevance_label)
         return self.transform(nxgraph, relevance_label = relevance_label)
 
     def add_query(self, graph_data, query):
