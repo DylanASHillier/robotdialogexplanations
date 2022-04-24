@@ -1,15 +1,41 @@
 from torch.nn import Module
 from torch.nn.modules.container import ModuleList
-from torch.nn import Linear
+from torch.nn import Linear, MSELoss
+from torch.optim import Adam
 from torch import cat, tanh, mean, no_grad, tensor
 from networkx import compose, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
 from torch_geometric.utils import from_networkx, remove_self_loops
 from torch_geometric.transforms import LineGraph
 from transformers import T5ForConditionalGeneration, AutoTokenizer
+from pytorch_lightning import LightningModule
 from tqdm import tqdm
 
+class LitAutoEncoder(LightningModule):
+    def __init__(self, init_dim, out_dim, lr=1e-3):
+        super(LitAutoEncoder,self).__init__()
+        self.encoder = Linear(init_dim, out_dim)
+        self.decoder = Linear(out_dim, init_dim)
+        self.loss = MSELoss()
+        self.lr = lr
+
+    def forward(self, x):
+        x = self.encoder(x)
+        return x
+
+    def training_step(self, x):
+        y = x
+        x = self.encoder(y)
+        pred = self.decoder(x)
+        loss = self.loss(pred, y)
+        self.log("train_loss",loss.item())
+        return loss
+
+    def configure_optimizers(self):
+        return Adam(self.parameters(), lr=self.lr)
+
+
 class LMEmbedder(Module):
-    def __init__(self, lm, tokenizer, max_batchsize=128):
+    def __init__(self, lm, tokenizer, max_batchsize=128, auto_encoder=None):
         '''
         Used to embed text using a language model. This is based off of 'Sentence-T5: Scalable Sentence Encoders
         from Pre-trained Text-to-Text Models', Ni et al. 2021
@@ -23,21 +49,25 @@ class LMEmbedder(Module):
         self.encoder = lm
         self.tokenizer = tokenizer
         self.max_batchsize=max_batchsize
+        if auto_encoder is not None:
+            self.auto_encoder = auto_encoder
 
     def forward(self, text):
         with no_grad():
             if type(text) is str:
                 ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
                 output = self.encoder(ttext)
-                return mean(output[0],dim=1)
+                output = mean(output[0],dim=1)
             else:
                 ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
                 ttexts = [ttext[i:i+self.max_batchsize] for i in range(0,len(ttext),self.max_batchsize)]
                 outputs = []
                 for ttext in tqdm(ttexts):
                     outputs.append(self.encoder(ttext)[0])
-                out = mean(cat(outputs),dim=1)
-                return out
+                output = mean(cat(outputs),dim=1)
+            if self.auto_encoder is not None:
+                output = self.auto_encoder(output)
+        return output
         
 
 class JointEmbedder(Module):
