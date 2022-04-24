@@ -9,14 +9,16 @@ from torch_geometric.transforms import LineGraph
 from transformers import T5ForConditionalGeneration, AutoTokenizer
 from pytorch_lightning import LightningModule
 from tqdm import tqdm
+from os import path
 
 class LitAutoEncoder(LightningModule):
-    def __init__(self, init_dim, out_dim, lr=1e-3):
+    def __init__(self, init_dim=512, out_dim=25, lr=1e-3):
         super(LitAutoEncoder,self).__init__()
         self.encoder = Linear(init_dim, out_dim)
         self.decoder = Linear(out_dim, init_dim)
         self.loss = MSELoss()
         self.lr = lr
+        self.save_hyperparameters()
 
     def forward(self, x):
         x = self.encoder(x)
@@ -112,7 +114,9 @@ class GraphTransformer(Module):
         super(GraphTransformer,self).__init__()
         lmodel = T5ForConditionalGeneration.from_pretrained(lm_string).encoder
         tokenizer = AutoTokenizer.from_pretrained(lm_string)
-        self.lm_embedder = LMEmbedder(lmodel,tokenizer)
+        if path.exists("dialogsystem/trained_models/autoencoder.ckpt"):
+            auto_encoder = LitAutoEncoder.load_from_checkpoint("dialogsystem/trained_models/autoencoder.ckpt")
+        self.lm_embedder = LMEmbedder(lmodel,tokenizer, auto_encoder= auto_encoder)
 
     def embed(self, nxgraph):
         '''
