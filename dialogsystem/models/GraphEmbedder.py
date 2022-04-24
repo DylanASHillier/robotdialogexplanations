@@ -134,7 +134,7 @@ class GraphTransformer(Module):
         edge_attributes = {key: values[i].tolist() for i,key in enumerate(keys)}
         return edge_attributes, edge_labels
 
-    def _update_attributes(self, nxgraph, edge_attributes, edge_labels, relevance_labels=False):
+    def _update_attributes(self, nxgraph, edge_attributes, edge_labels, relevance_label=False):
         '''
         updates the edge attributes of the graph with the new embedded edge attributes
         Arguments:
@@ -147,7 +147,7 @@ class GraphTransformer(Module):
         if not is_directed(nxgraph):
             set_edge_attributes(nxgraph,_switch_dict(edge_attributes),'embedding')
             set_edge_attributes(nxgraph,_switch_dict(edge_labels),'edge_label')
-        if relevance_labels:
+        if relevance_label:
             rel_attributes = get_edge_attributes(nxgraph,'relevance_label')
             set_edge_attributes(nxgraph,rel_attributes,'relevance_label')
             if not is_directed(nxgraph):
