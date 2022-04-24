@@ -54,7 +54,7 @@ class GraphTrainDataset(Dataset):
         idx = 0
         for query, graph in tqdm(self.init_jsons):
             sample = gpickle.read_gpickle(graph)
-            graph, _ = self.graphembedder(sample)
+            graph = self.graphembedder(sample)
             data = self.graphembedder.add_query(graph,query)
             
             if self.pre_filter is not None and not self.pre_filter(data):
