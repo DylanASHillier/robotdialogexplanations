@@ -7,7 +7,7 @@ def parse_arguments():
     parse arguments for 
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=int, default=16, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size')
     parser.add_argument('--num_workers', type=int, default=4, help='number of workers')
     parser.add_argument('--shuffle', action='store_true', help='shuffle data')
     parser.add_argument('--num_epochs', type=int, default=1, help='number of epochs')
@@ -20,7 +20,7 @@ def parse_arguments():
 if __name__ == '__main__':
     args = parse_arguments()
     tokenizer=T5Tokenizer.from_pretrained(args.model_name)
-    model=T5Tokenizer.from_pretrained(args.model_name)
+    model=T5ForConditionalGeneration.from_pretrained(args.model_name)
 
     source = "triple"
     target = "sentence"
@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
 
     Seq2SeqTrainer(
-        model=T5ForConditionalGeneration.from_pretrained("t5-base"),
+        model=model,
         args=training_args,
         train_dataset=ds_train,
         eval_dataset=ds_val,

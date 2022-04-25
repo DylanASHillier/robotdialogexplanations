@@ -116,6 +116,8 @@ class GraphTransformer(Module):
         tokenizer = AutoTokenizer.from_pretrained(lm_string)
         if path.exists("dialogsystem/trained_models/autoencoder.ckpt"):
             auto_encoder = LitAutoEncoder.load_from_checkpoint("dialogsystem/trained_models/autoencoder.ckpt")
+        else:
+            auto_encoder =None
         self.lm_embedder = LMEmbedder(lmodel,tokenizer, auto_encoder= auto_encoder)
 
     def embed(self, nxgraph):
