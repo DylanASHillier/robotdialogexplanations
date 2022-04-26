@@ -4,20 +4,30 @@ from torch import mean, stack
 from torch.optim import Adam
 
 class Triples2TextSystem(LightningModule):
+    '''
+    source = "triple"
+    prefix = "translate triples to text: "
+    '''
     def __init__(self,base_model="t5",lr=1e-5):
         super(Triples2TextSystem,self).__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(base_model)
         self.model = T5ForConditionalGeneration.from_pretrained(base_model)
         self.lr = lr
+        self.prefix = "translate triples to text: "
         self.save_hyperparameters()
 
     def setup_train(self):
         self.model.train()
 
+    def load_from_hf_checkpoint(self, checkpoint_path):
+        self.model = T5ForConditionalGeneration.from_pretrained(checkpoint_path)
+        return self
+
     def forward(self,input):
         '''
         input textual triple of shape [batchsize, maximum_length]
         '''
+        input = [self.prefix + sample for sample in input]
         input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
         outputs = self.model.generate(input)
         outputs = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
