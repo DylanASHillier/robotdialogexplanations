@@ -115,7 +115,7 @@ class RobotDialogueManager(DialogueKBManager):
                 robot_orientation = base_info["location"]["orientation"]
                 robot_orientation = translate_quaternion_to_euler(robot_orientation["x"],robot_orientation["y"],robot_orientation["z"],robot_orientation["w"])
                 obj_type = observation["obj_type"]
-                obj_id = observation["id_of_object"]
+                obj_id = f"object: {observation['id_of_object']}"
                 obj_colour = observation["obj_colour"]
                 prev_identified = observation["obj_previously_identified"]
                 location_dict[obj_id]=obj_location
@@ -126,9 +126,9 @@ class RobotDialogueManager(DialogueKBManager):
                 object_graph.add_edge(obj_id, obj_type, label="is")
                 object_graph.add_edge(obj_id, obj_colour, label="has_colour")
                 if prev_identified:
-                    object_graph.add_edge(obj_id, time, label="reobserved at")
+                    object_graph.add_edge(obj_id, str(time), label="reobserved at")
                 else:
-                    object_graph.add_edge(obj_id, time, label="first observed at")
+                    object_graph.add_edge(obj_id, str(time), label="first observed at")
             # compute positional relations between observed objects
             for obj_id in location_dict:
                 for other_obj_id in location_dict:
@@ -142,7 +142,6 @@ class RobotDialogueManager(DialogueKBManager):
 
             # compute temporal relations between observations and add to graph
             threshold = 0.5
-            print(times)
             for t1, t2 in zip(times, times):
                 if t1 != t2:
                     delta_time = t2 - t1
@@ -167,10 +166,10 @@ if __name__ == '__main__':
     triples2text = Triples2TextSystem.load_from_checkpoint("dialogsystem/trained_models/t2t.ckpt").load_from_hf_checkpoint("./dialogsystem/trained_models/t2t/t2ttrained")
     # print(triples2text)
     # print(triples2text(["graph, is used in, China"]))
-    mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/meddim.ckpt")
-    mpnn.k = 3
+    mpnn = LightningKGQueryMPNN.load_from_checkpoint("trained_models/newmeddim.ckpt")
+    mpnn.k = 10
     rdm = RobotDialogueManager(mpnn,convqa,triples2text)
-    # rdm.question_and_response("where is the bottle in relation to the robot")
+    rdm.question_and_response("where is the bottle in relation to the robot")
 
     # orientation = [1,0,0]
     # vector = [1,1,0]
