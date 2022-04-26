@@ -18,6 +18,8 @@ class LightningKGQueryMPNN(LightningModule):
         self.final_layer = Linear(hidden_dim,1)
         if embedding_size is not None:
             self.init_layer = Linear(embedding_size,hidden_dim)
+        else:
+            self.init_layer = None
         self.hidden_layers = ModuleList([GATv2Conv(hidden_dim,hidden_dim,heads=heads, concat=False, dropout=0.2,) for i in range(num_layers)])
         self.activations = [ELU() for i in range(num_layers)]
         self.k = k
