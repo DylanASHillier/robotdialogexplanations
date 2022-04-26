@@ -3,11 +3,16 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from data.dataimport import DataImporter
 from data.kelmDataset import KELMDataset,Kelm_dataloader
+from data.qtext import QtextSQUAD
 import argparse
 from data.graphDataset import GraphTrainDataset
+from models.GraphEmbedder import LMEmbedder
 from models.triples2text import Triples2TextSystem
 from models.kgqueryextract import LightningKGQueryMPNN
+from models.GraphEmbedder import LitAutoEncoder
+from transformers import AutoTokenizer, T5ForConditionalGeneration
 import torch_geometric
+from torch.utils.data import Dataset
 
 #parse arguments for model training.
 def parse_arguments():
@@ -48,6 +53,26 @@ if __name__=='__main__':
         print("model setup")
         train_dl = torch_geometric.data.DataLoader(train_dataset,args.batch_size,num_workers=4)
         val_dl = None
+    elif args.system_type == 'autoencoder':
+        lmodel = T5ForConditionalGeneration.from_pretrained(args.base_model).encoder
+        tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+        model = LitAutoEncoder(512,25)
+        lmembedder = LMEmbedder(lmodel,tokenizer)
+        class text_ds(Dataset):
+            def __init__(self, texts) -> None:
+                super().__init__()
+                self.texts = texts
+            
+            def __len__(self) -> int:
+                return len(self.texts)
+
+            def __getitem__(self, idx):
+                return lmembedder(self.texts[idx])
+        
+        train_dataset = text_ds([item[0] for item in QtextSQUAD("train")])
+        train_dl = DataLoader(train_dataset)
+        val_dataset = text_ds([item[0] for item in QtextSQUAD("validation")])
+        val_dl = DataLoader(val_dataset)
     if args.num_gpus>0:
         trainer = Trainer(logger=logger,log_every_n_steps=10,max_epochs=args.num_epoch,gpus=args.num_gpus,enable_checkpointing=False,strategy='ddp')
     else:
