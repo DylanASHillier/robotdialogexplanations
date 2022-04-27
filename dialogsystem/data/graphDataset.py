@@ -8,6 +8,8 @@ from data import qtext
 from re import search
 from tqdm import tqdm
 from zipfile import ZipFile
+from data.gqaDataset import gqa
+from torch_geometric.data import Data
 
 def get_index(graphname):
     match = search('\d+',graphname)
@@ -32,6 +34,8 @@ class GraphTrainDataset(Dataset):
                 text_ds = qtext.QtextSQUAD("train")
             elif ds=='coqa':
                 text_ds = qtext.QtextCoQA("train")
+            elif ds=='gqa':
+                text_ds = gqa('train')
             graph_files = os.listdir(raw_filepath+'/'+ds)
             graph_files.remove("README.md")
             self.init_jsons += [(text_ds[get_index(e)][0],raw_filepath+'/'+ds+'/'+e)  for i,e in enumerate(graph_files)]
@@ -54,8 +58,11 @@ class GraphTrainDataset(Dataset):
         idx = 0
         for query, graph in tqdm(self.init_jsons):
             sample = gpickle.read_gpickle(graph)
-            graph = self.graphembedder(sample)
-            data = self.graphembedder.add_query(graph,query)
+            if sample.size() == 0:
+                data = Data()
+            else:
+                graph = self.graphembedder(sample)
+                data = self.graphembedder.add_query(graph,query)
             
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
@@ -71,6 +78,8 @@ class GraphTrainDataset(Dataset):
             for file in zf.namelist():
                 with zf.open(file) as f:
                     graph = load(f)
+                    if not graph.num_nodes:
+                        return graph
                     x = graph.x[:,:graph.x.size(1)-1]
                     y = graph.x[:,-1]
                     graph.x = x
