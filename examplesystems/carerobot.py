@@ -4,6 +4,7 @@ import sys
 from os.path import dirname
 from networkx import DiGraph
 sys.path.append(dirname("./dialogsystem"))
+from dialogsystem.models.convqa import ConvQASystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
 from dialogsystem.kb_dial_management.kb_dial_manager import DialogueKBManager
 from dialogsystem.models.triples2text import Triples2TextSystem
@@ -85,8 +86,10 @@ def relations_from_robot_perspective(robot_orientation, object_a, object_b):
     return (frontedness, leftness, upness)
 
 class RobotDialogueManager(DialogueKBManager):
-    def __init__(self, mpnn, convqa, triples2text,db_port = 27017, knowledge_base_args={'session':(2022,4,11)}) -> None:
+    def __init__(self, mpnn, convqa, triples2text,db_port = 27017, knowledge_base_args={'session':(2022,4,21)}) -> None:
         self.ebb_interface = EBB_interface(port=db_port)
+        self.observed_objects = set()
+        self.map_to_old_id = {}
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
 
 
@@ -95,19 +98,26 @@ class RobotDialogueManager(DialogueKBManager):
         session_date: <(int,int,int)> (yyyy,mm,dd) 
         """
         sessions = self.ebb_interface.getSessionNums_date(*session)
-        output = self.ebb_interface.getCollectionFromEBB(["observations_coll"],sessions)
+        print(f"choose a session from: {sessions}")
+        session_num = int(input("session number: "))
+        output = self.ebb_interface.getCollectionFromEBB(["observations_coll"],[session_num])
+        # print(output)
         statement_array =[]
         object_graph = DiGraph()
         times = []
+
         for output in output:
             _, statement_array = self.ebb_interface.state_observations_list(output["observations_coll"], statement_array)
-            print("\n\n\n\n lets a go")
+            # print("\n\n\n\n lets a go")
+            # print(statement_array)
+            assert(len(statement_array))>0
             observations = statement_array[0]
             object_observations = observations[3]
             time = observations[1]
             times.append(time)
             location_dict = {}
             object_graph.add_edge("robot", "you", label="is_known_as")
+            object_graph.add_edge("you","robot", label="is_known_as")
             for observation in object_observations:
                 base_info = observation["base_info"]
                 obj_location = observation["location_of_object"]["position"]
@@ -115,7 +125,10 @@ class RobotDialogueManager(DialogueKBManager):
                 robot_orientation = base_info["location"]["orientation"]
                 robot_orientation = translate_quaternion_to_euler(robot_orientation["x"],robot_orientation["y"],robot_orientation["z"],robot_orientation["w"])
                 obj_type = observation["obj_type"]
-                obj_id = f"object: {observation['id_of_object']}"
+                old_obj_id = f"object: {observation['id_of_object']}"
+                self.observed_objects.add(old_obj_id)
+                obj_id = f"{len(self.observed_objects)} {obj_type}"
+                self.map_to_old_id[obj_id] = old_obj_id
                 obj_colour = observation["obj_colour"]
                 prev_identified = observation["obj_previously_identified"]
                 location_dict[obj_id]=obj_location
@@ -124,6 +137,7 @@ class RobotDialogueManager(DialogueKBManager):
                 object_graph.add_edge(obj_id, "robot", label=obj_relation_to_robot[1])
                 object_graph.add_edge(obj_id, "robot", label=obj_relation_to_robot[2])
                 object_graph.add_edge(obj_id, obj_type, label="is")
+                object_graph.add_edge(obj_type, obj_id, label="is")
                 object_graph.add_edge(obj_id, obj_colour, label="has_colour")
                 if prev_identified:
                     object_graph.add_edge(obj_id, str(time), label="reobserved at")
@@ -162,15 +176,21 @@ class RobotDialogueManager(DialogueKBManager):
 
 
 if __name__ == '__main__':
-    convqa = lambda x: "i'm not sure"
+    convqa = ConvQASystem().load_from_hf_checkpoint("./dialogsystem/trained_models/convqa")
     triples2text = Triples2TextSystem.load_from_checkpoint("dialogsystem/trained_models/t2t.ckpt").load_from_hf_checkpoint("./dialogsystem/trained_models/t2t/t2ttrained")
     # print(triples2text)
     # print(triples2text(["graph, is used in, China"]))
-    mpnn = LightningKGQueryMPNN.load_from_checkpoint("trained_models/newmeddim.ckpt")
+    mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqamodel.ckpt")
     mpnn.k = 10
     rdm = RobotDialogueManager(mpnn,convqa,triples2text)
-    rdm.question_and_response("where is the bottle in relation to the robot")
-
+    # rdm.question_and_response("where is the person in relation to the robot")
+    # rdm.question_and_response("Who did you talk to?")
+    # rdm.question_and_response("and to whom did you bring the object?")
+    # rdm.question_and_response("what did you bring the person?")
+    # rdm.question_and_response("where did you find the object?")
+    rdm.question_and_response("what objects did you see on the table?")
+    # rdm.question_and_response("what did you do after picking up the plant?")
+    rdm.save_logs("logs/")
     # orientation = [1,0,0]
     # vector = [1,1,0]
     # print(rotate_vector(orientation, vector))
