@@ -1,5 +1,6 @@
-from networkx import DiGraph, get_edge_attributes, read_gpickle
-
+from matplotlib import pyplot as plt
+from networkx import DiGraph, get_edge_attributes, read_gpickle, write_gpickle, draw
+import json
 import sys
 from os.path import dirname
 
@@ -41,6 +42,15 @@ class DialogueKBManager():
         self._reset()
         self.kbs = self.initialise_kbs(**knowledge_base_args)
         self.kbs = [self._pre_process_graph(kb) for kb in self.kbs]
+        self.logs = {
+            'questions': [],
+            'base_graphs': self.kbs+[self.dialogue_graph],
+            'extracted_graphs': [],
+            'extracted_triples': [],
+            'extracted_text': [],
+            'extracted_answers': [],
+            'extracted_context': [],
+        }
 
     def _reset(self):
         self.dialogue_graph = DiGraph()
@@ -53,6 +63,35 @@ class DialogueKBManager():
         '''
         return []
 
+    def save_logs(self, folder):
+        # save base graphs to json
+        for i,graph in enumerate(self.logs["base_graphs"]):
+            write_gpickle(graph,f"{folder}/basegraph{i}.json")
+        # save base graphs as pictures
+        for i,graph in enumerate(self.logs["base_graphs"]):
+            draw(graph,with_labels=True)
+            plt.savefig(f"{folder}/basegraph{i}.png")
+        # save extracted graphs to json
+        for i,graph in enumerate(self.logs["extracted_graphs"]):
+            write_gpickle(graph,f"{folder}/extractedgraph{i}.json")
+        # save extracted graphs as pictures
+        for i,graph in enumerate(self.logs["extracted_graphs"]):
+            draw(graph,with_labels=True)
+            plt.savefig(f"{folder}/extractedgraph{i}.png")
+        # save remaining data to json, skipping base graphs and extracted graphs
+        data = {
+            'questions': self.logs['questions'],
+            'extracted_triples': self.logs['extracted_triples'],
+            'extracted_text': self.logs['extracted_text'],
+            'extracted_answers': self.logs['extracted_answers'],
+            'extracted_context': self.logs['extracted_context'],
+        }
+        with open(f"{folder}/data.json", 'w') as f:
+            json.dump(data, f)
+
+
+
+
     def _pre_process_graph(self, graph):
         return self.graph_transformer.update(DiGraph(),graph)
 
@@ -63,12 +102,18 @@ class DialogueKBManager():
         self.dialogue_graph = self.graph_transformer.update(self.dialogue_graph, update)
 
     def question_and_response(self,question: str):
+        self.logs['questions'].append(question)
         graph = self._extract_relevant_graph_from_query(question)
+        self.logs['extracted_graphs'].append(graph)
         data = self._transform_graph(graph, question)
         triples = self._run_mpnn(data)
+        self.logs['extracted_triples'].append(triples)
+        triples = [triple.split(",") for triple in triples]
         self._update_dialogue_graph(triples)
         text = self._run_triples2text(triples)
+        self.logs['extracted_text'].append(text)
         answer = self._run_convqa(question, text)
+        self.logs['extracted_answers'].append(answer)
         self._update_dialogue_context(question, answer)
         return answer
 
@@ -94,7 +139,7 @@ class DialogueKBManager():
     
     def _transform_graph(self,graph, question):
         # self.processed_graph = self.graph_transformer.update(self.processed_graph, graph, False)
-        print(graph)
+        # print(graph)
         data = self.graph_transformer.transform(graph, False)
         data = self.graph_transformer.add_query(data, question)
         return data
@@ -104,13 +149,34 @@ class DialogueKBManager():
         triples = [data.edge_label[idx] for idx in topk]
         return triples
 
+    def _coalesce_triples(self,triples):
+        '''
+        given a list of triples, concatenate any that have the same entity
+        '''
+        triple_groups = []
+        for triple in triples:
+            coalesced = False
+            for triple_group in triple_groups:
+
+                if triple[0] in triple_group or triple[2] in triple_group:
+                    triple_group.append(triple[0])
+                    triple_group.append(triple[1])
+                    triple_group.append(triple[2])
+                    coalesced=True
+                    break
+            if not coalesced:
+                triple_groups.append([triple[0],triple[1],triple[2]])
+        return [",".join(triple_group) for triple_group in triple_groups]
+
     def _run_triples2text(self,triples):
-        print(triples)
-        return self.triples2text(triples)
+        # print(triples)
+        triples = self._coalesce_triples(triples)
+        print(f"coalesced triples: {triples}")
+        return '\n'.join(self.triples2text(triples))
 
     def _run_convqa(self,question, background_text):
         prompt = f"background: {background_text}\n context: {self.dialogue_context}\n question: {question}"
-        print(prompt, self.dialogue_context, question)
+        # print(prompt, self.dialogue_context, question)
         answer = self.convqa(prompt)
         return answer
 
