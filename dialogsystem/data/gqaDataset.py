@@ -21,9 +21,11 @@ class gqa(Dataset):
         '''
         nx_graph = DiGraph()
         for node, attr in graph["objects"].items():
-            nx_graph.add_node(node, label = attr["name"])
+            nx_graph.add_edge(node, attr["name"], label = 'is')
+            nx_graph.add_edge(attr["name"], node, label = 'is')
             for pred in attr["attributes"]:
                 nx_graph.add_edge(node, pred, label = "is")
+                nx_graph.add_edge(node, pred, label = 'is')
             for rel in attr["relations"]:
                 nx_graph.add_edge(node, rel["object"], label = rel["name"])
         return nx_graph
