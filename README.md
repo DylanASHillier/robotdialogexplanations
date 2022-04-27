@@ -5,3 +5,15 @@ Use this link for setting up the internal storage: [aws mount file systems](http
 Steps:
 1. run `setup.py`
 2. run the command `gzip -d datasets/KGs/conceptnetassertions.csv.gz`
+
+## Recreate Datasets
+Steps:
+
+
+## Train Models
+Steps:
+
+
+## Example Systems:
+### Robot doing pickup tasks
+run `carerobot.py`
