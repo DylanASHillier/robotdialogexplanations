@@ -1,5 +1,7 @@
 from datasets import load_dataset
 import argparse
+from numpy import random
+# import transformers question answering aparatus
 from transformers import T5ForConditionalGeneration, T5Tokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 
 def parse_arguments():
@@ -21,20 +23,32 @@ if __name__ == '__main__':
     args = parse_arguments()
     tokenizer=T5Tokenizer.from_pretrained(args.model_name)
     model=T5ForConditionalGeneration.from_pretrained(args.model_name)
-
-    source = "triple"
-    target = "sentence"
-    prefix = "translate triples to text: "
+    background_pref = "background: "
+    context_pref = "context: "
+    question_pref = "question: "
+    target_pref = "answer: "
+    prefix = "Answer the Question: "
 
     def preprocess_function(samples):
-        inputs = [prefix + sample for sample in samples[source]]
-        targets = [sample for sample in samples[target]]
+        rng = random.default_rng(10)
+        inputs = []
+        targets = []
+        for idx in range(len(samples["questions"])):
+            rand_index = rng.integers(0,len(samples['questions'][idx]))
+            question = samples['questions'][idx][rand_index]
+            answer = samples['answers'][idx]['input_text'][rand_index]
+            qapairs = zip(samples['questions'][idx][:rand_index],samples['answers'][idx]['input_text'][:rand_index])
+            conv_context = ' \n '.join(list(map(lambda x: x[0]+' -> ' +x[1],qapairs )))
+            background = samples['story'][idx]
+            inputs.append(f"{background_pref} {background} \n {context_pref} {conv_context} \n {question_pref} {question}")
+            targets.append(f"{target_pref} {answer}")
+        
         model_inputs = tokenizer(inputs, max_length=256, truncation=True)
         with tokenizer.as_target_tokenizer():
             labels = tokenizer(targets, max_length=256, truncation=True)
         model_inputs["labels"]=labels["input_ids"]
         return model_inputs
-    ds = load_dataset("kelm")
+    ds = load_dataset("coqa")
     ds_train = ds["train"].map(preprocess_function, batched=True)
     ds_val = ds["validation"].map(preprocess_function, batched=True)
 
