@@ -2,6 +2,7 @@ from pytorch_lightning import LightningModule
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 from torch import mean, stack
 from torch.optim import Adam
+from torch import no_grad
 
 class Triples2TextSystem(LightningModule):
     '''
@@ -27,11 +28,12 @@ class Triples2TextSystem(LightningModule):
         '''
         input textual triple of shape [batchsize, maximum_length]
         '''
-        input = [self.prefix + sample for sample in input]
-        input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
-        outputs = self.model.generate(input)
-        outputs = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return outputs
+        with no_grad():
+            input = [self.prefix + sample for sample in input]
+            input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
+            outputs = self.model.generate(input)
+            outputs = [self.tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+            return outputs
 
     def training_step(self,batch,batch_idx):
         return self.update_step(batch, "train")
