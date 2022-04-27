@@ -32,7 +32,7 @@ if __name__ == '__main__':
     de = DataExtractor()
     args = parse_arguments()
     ds = gqa(args.split)
-    for i,(question,answer,graph) in tqdm(enumerate(ds)):  
+    for i,(question,answer,graph) in tqdm(enumerate(ds)):
         all_entities= graph.nodes.items()
         all_entities = {get_pair(entity)[1]:get_pair(entity)[0] for entity in all_entities}
         all_relations = set(get_edge_attributes(graph,"label").values())
@@ -44,10 +44,10 @@ if __name__ == '__main__':
         background_entities = cg.trim(answer,all_entities)
         background_relation_labels = cg.trim(answer,all_relations)
         gc.input_nx_graph_with_trimming(graph, question_entities, 3)
-        graph = gc.build_graph()
+        processed_graph = gc.build_graph()
         potentially_relevant = gc.extract_relevant_nodes(graph,background_entities,1)
         edge_label_dict = {}
-        edges = graph.edges(data=True)
+        edges = processed_graph.edges(data=True)
         for edge in edges:
             u,v,label = edge
             score = 0
@@ -63,6 +63,6 @@ if __name__ == '__main__':
                 score+=1
             edge_label_dict[(u,v)]=score
     
-        set_edge_attributes(graph,edge_label_dict,'relevance_label')
-        gpickle.write_gpickle(graph,f"datasets/gqa/graph{i}.json")
-    
+        set_edge_attributes(processed_graph,edge_label_dict,'relevance_label')
+        gpickle.write_gpickle(processed_graph,f"datasets/gqa/graph{i}.json")
+
