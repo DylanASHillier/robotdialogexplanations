@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningModule
-from transformers import AutoTokenizer, BertForQuestionAnswering
-from torch import mean, stack
+from transformers import AutoTokenizer, BertForQuestionAnswering, T5ForConditionalGeneration
+from torch import mean, stack, no_grad
 from torch.optim import Adam
 
 class ConvQASystem(LightningModule):
@@ -14,31 +14,21 @@ class ConvQASystem(LightningModule):
         self.lr = lr
         self.save_hyperparameters()
 
-    def setup_train(self):
-        self.model.train()
-
     def forward(self,input):
         '''
         input question and background
         '''
-        input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
-        outputs = self.model.generate(input)
-        print(outputs)
-        outputs = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return outputs
+        with no_grad():
+            input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
+            outputs = self.model.generate(input)
+            outputs = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return outputs
 
-    def training_step(self,batch,batch_idx):
-        return self.update_step(batch, "train")
-
-    def update_step(self,batch,log_string):
-        batched_triples_ids, batched_triple_mask, batched_target_ids, batched_target_mask = batch      
-        outputs = self.model(batched_triples_ids, labels=batched_target_ids)
-        loss = outputs[0]
-        self.log(f"{log_string}_loss",loss.item())
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        return self.update_step(batch, "validation")
+    def load_from_hf_checkpoint(self, checkpoint_path):
+        # self.model = BertForQuestionAnswering.from_pretrained(checkpoint_path)
+        self.model = T5ForConditionalGeneration.from_pretrained(checkpoint_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+        return self
 
     def configure_optimizers(self):
         return Adam(self.parameters(), self.lr)
