@@ -42,7 +42,7 @@ class CandidateGenerator():
         tagged = nltk.pos_tag(tokens,tagset='universal')
         mentions = []
         for word,part in tagged:
-            if part in ["ADJ","ADP","NOUN","NUM","VERB","X"]:
+            if part in ["ADJ","ADP","NOUN","NUM","VERB","X","PRON"]:
                 mentions.append(word)
         for mention in mentions:
             for alias,entity_id in entities.items():
