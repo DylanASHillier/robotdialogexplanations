@@ -6,7 +6,7 @@ import dash_cytoscape as cyto
 ## argparse, obtaining name of graph file
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("graph_file", default="extractedgraph0" ,help="name of graph file")
+parser.add_argument("--graph_file", default="extractedgraph0" ,help="name of graph file")
 
 if __name__ == "__main__":
     args = parser.parse_args()
