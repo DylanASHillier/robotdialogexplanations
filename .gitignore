@@ -133,3 +133,9 @@ dmypy.json
 *.jsonl
 *.json
 *.ckpt
+*.png
+*.zip
+*.txt
+!requirements.txt
+*.model
+*.DS_Store
