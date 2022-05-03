@@ -3,6 +3,7 @@
 import sys
 from os.path import dirname
 from networkx import DiGraph
+from regex import D
 sys.path.append(dirname("./dialogsystem"))
 from dialogsystem.models.convqa import ConvQASystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
@@ -12,6 +13,29 @@ sys.path.append(dirname("../ebbhrd_hrd/src"))
 from src.EBB_Offline_Interface import EBB_interface
 import math
 import numpy
+from networkx import compose_all
+
+### Dialogue example
+'''
+[{'session_num': 52, 'dialogue_speak_and_listen': [{'_id': ObjectId('6261bb34d0dbf8b6bf86c6c0'), 'human_response': '[NONE]', 'robot_question': 'Hi, my name is Bam Bam.', 'base_info': {'ros_timestamp': 1.6505720848924406e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 44, 892000)}, 'session_num': 52, 'entry_uid': 79}, {'_id': ObjectId('6261bb3ed0dbf8b6bf86c73a'), 'human_response': '[NONE]', 'robot_question': 'Hello', 'base_info': {'ros_timestamp': 1.6505720947918707e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 54, 791000)}, 'session_num': 52, 'entry_uid': 201}, {'_id': ObjectId('6261bb3fd0dbf8b6bf86c741'), 'human_response': '[NONE]', 'robot_question': 'What is your name?', 'base_info': {'ros_timestamp': 1.6505720957920776e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 55, 792000)}, 'session_num': 52, 'entry_uid': 208}, {'_id': ObjectId('6261bb42d0dbf8b6bf86c764'), 'human_response': 'Matthew', 'robot_question': 'What is your name?', 'base_info': {'ros_timestamp': 1.650572098346359e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 58, 346000)}, 'session_num': 52, 'entry_uid': 243}, {'_id': ObjectId('6261bb43d0dbf8b6bf86c776'), 'human_response': '[NONE]', 'robot_question': 'What do you want me to pick up?', 'base_info': {'ros_timestamp': 1.6505720999908145e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 59, 990000)}, 'session_num': 52, 'entry_uid': 261}, {'_id': ObjectId('6261bb4ed0dbf8b6bf86c7e3'), 'human_response': 'Please pick up the potted plant.', 'robot_question': 'What do you want me to pick up?', 'base_info': {'ros_timestamp': 1.650572110565169e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 15, 10, 565000)}, 'session_num': 52, 'entry_uid': 370}, {'_id': ObjectId('6261bb87d0dbf8b6bf86ca1f'), 'human_response': '[NONE]', 'robot_question': "Hi, Matthew, I've brought you the potted_plant", 'base_info': {'ros_timestamp': 1.6505721673928028e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 7, 392000)}, 'session_num': 52, 'entry_uid': 942}, {'_id': ObjectId('6261bb9ed0dbf8b6bf86cadb'), 'human_response': '[NONE]', 'robot_question': 'It looks like my job here is done. Have a nice day!', 'base_info': {'ros_timestamp': 1.6505721905940237e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 30, 594000)}, 'session_num': 52, 'entry_uid': 1130}, {'_id': ObjectId('6261bba9d0dbf8b6bf86cb69'), 'human_response': '[NONE]', 'robot_question': "I'm back where I started, woohoo!", 'base_info': {'ros_timestamp': 1.6505722013919053e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 41, 391000)}, 'session_num': 52, 'entry_uid': 1272}]}]
+'''
+
+### State Change example
+'''
+[{'session_num': 52, 'state_changes_coll': [{'_id': ObjectId('6261bb32d0dbf8b6bf86c6a4'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': nan, 'x': nan, 'y': nan, 'z': nan}, 'position': {'x': nan, 'y': nan, 'z': nan}}, 'ros_timestamp': 1.6505720824988321e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 42, 498000)}, 'changing_from': '[INITIAL_STATE]', 'changing_to': 'StoreInitialLocation', 'previous_state_result': 1, 'session_num': 52, 'entry_uid': 51}, {'_id': ObjectId('6261bb32d0dbf8b6bf86c6ab'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.7275106985634158, 'x': -0.672863414515885, 'y': 0.09277567744269441, 'z': -0.09682810829941332}, 'position': {'x': 1.2374735311165468, 'y': 0.9148515662095564, 'z': -0.6104560585218771}}, 'ros_timestamp': 1.650572082813442e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 42, 813000)}, 'changing_from': 'StoreInitialLocation', 'changing_to': 'Intro', 'previous_state_result': 1, 'session_num': 52, 'entry_uid': 57}, {'_id': ObjectId('6261bb34d0dbf8b6bf86c6c1'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.7275215636537887, 'x': -0.6728710809839555, 'y': 0.09270930524509705, 'z': -0.09675674402954725}, 'position': {'x': 1.2381815412013066, 'y': 0.914763592239022, 'z': -0.6115145774833226}}, 'ros_timestamp': 1.6505720848964782e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 44, 896000)}, 'changing_from': 'Intro', 'changing_to': 'SetNavToOperator', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 80}, {'_id': ObjectId('6261bb34d0dbf8b6bf86c6c2'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.7275215636537887, 'x': -0.6728710809839555, 'y': 0.09270930524509705, 'z': -0.09675674402954725}, 'position': {'x': 1.2381815412013066, 'y': 0.914763592239022, 'z': -0.6115145774833226}}, 'ros_timestamp': 1.6505720849003215e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 44, 900000)}, 'changing_from': 'SetNavToOperator', 'changing_to': 'NavToOperator', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 81}, {'_id': ObjectId('6261bb3ed0dbf8b6bf86c738'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.47605928204368675, 'x': -0.7339712524270723, 'y': 0.4078734863450879, 'z': -0.26132925539898394}, 'position': {'x': 0.7284739273613348, 'y': 1.0817068699381982, 'z': 0.001134553830078211}}, 'ros_timestamp': 1.6505720942054523e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 14, 54, 205000)}, 'changing_from': 'NavToOperator', 'changing_to': 'EBBHRD_DialogueSys', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 199}, {'_id': ObjectId('6261bb4ed0dbf8b6bf86c7e7'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.47563832445864707, 'x': -0.7333142483739016, 'y': 0.40905353364135766, 'z': -0.26209464712868236}, 'position': {'x': 0.7295575474419371, 'y': 1.0773298346033204, 'z': 0.010854823540857705}}, 'ros_timestamp': 1.6505721106542008e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 15, 10, 654000)}, 'changing_from': 'EBBHRD_DialogueSys', 'changing_to': 'SetNavToPickUp', 'previous_state_result': 5, 'session_num': 52, 'entry_uid': 374}, {'_id': ObjectId('6261bb4ed0dbf8b6bf86c7e8'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.47563832445864707, 'x': -0.7333142483739016, 'y': 0.40905353364135766, 'z': -0.26209464712868236}, 'position': {'x': 0.7295575474419371, 'y': 1.0773298346033204, 'z': 0.010854823540857705}}, 'ros_timestamp': 1.6505721106580815e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 15, 10, 658000)}, 'changing_from': 'SetNavToPickUp', 'changing_to': 'NavToPickUp', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 375}, {'_id': ObjectId('6261bb57d0dbf8b6bf86c839'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.5320026395294926, 'x': -0.8216927913173961, 'y': 0.17290853357784353, 'z': -0.10907239452142659}, 'position': {'x': 1.4015021432122914, 'y': 1.1921789481997633, 'z': -0.25226148112854946}}, 'ros_timestamp': 1.6505721196619717e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 15, 19, 661000)}, 'changing_from': 'NavToPickUp', 'changing_to': 'PickUpItem', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 456}, {'_id': ObjectId('6261bb7bd0dbf8b6bf86c99c'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.7017326592889497, 'x': -0.6493648766124855, 'y': 0.20085018130531984, 'z': -0.21343789864719503}, 'position': {'x': 1.5106569688965195, 'y': 0.9357927006246807, 'z': -0.2768120612987401}}, 'ros_timestamp': 1.6505721550376184e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 15, 55, 37000)}, 'changing_from': 'PickUpItem', 'changing_to': 'SetNavBackToOperator', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 811}, {'_id': ObjectId('6261bb7bd0dbf8b6bf86c99d'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.7017326592889497, 'x': -0.6493648766124855, 'y': 0.20085018130531984, 'z': -0.21343789864719503}, 'position': {'x': 1.5106569688965195, 'y': 0.9357927006246807, 'z': -0.2768120612987401}}, 'ros_timestamp': 1.6505721550408604e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 15, 55, 40000)}, 'changing_from': 'SetNavBackToOperator', 'changing_to': 'NavBackToOperator', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 812}, {'_id': ObjectId('6261bb84d0dbf8b6bf86c9ef'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.4751262575103582, 'x': -0.7325183166274698, 'y': 0.41047937840075766, 'z': -0.26301831711343954}, 'position': {'x': 0.7305655243610082, 'y': 1.0744670759732227, 'z': 0.005021535031709101}}, 'ros_timestamp': 1.6505721642478556e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 4, 247000)}, 'changing_from': 'NavBackToOperator', 'changing_to': 'SpeakToOperator', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 894}, {'_id': ObjectId('6261bb87d0dbf8b6bf86ca20'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.4752150036833476, 'x': -0.7326568188008672, 'y': 0.41023211740624066, 'z': -0.2628579387943626}, 'position': {'x': 0.729303072412566, 'y': 1.0763300896289, 'z': 0.0008935403856124569}}, 'ros_timestamp': 1.6505721673958218e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 7, 395000)}, 'changing_from': 'SpeakToOperator', 'changing_to': 'GiveItemBack', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 943}, {'_id': ObjectId('6261bb9ad0dbf8b6bf86cabc'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.6428303919381637, 'x': -0.5933731273122679, 'y': 0.3305432478318153, 'z': -0.3541448577871497}, 'position': {'x': 0.7303817153651284, 'y': 0.9291952782657272, 'z': -0.4009910641085735}}, 'ros_timestamp': 1.6505721867581535e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 26, 758000)}, 'changing_from': 'GiveItemBack', 'changing_to': 'ThankOperator', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 1099}, {'_id': ObjectId('6261bb9ed0dbf8b6bf86cadc'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.6428027729815262, 'x': -0.5933473490119393, 'y': 0.3305895193802273, 'z': -0.35419498605106475}, 'position': {'x': 0.7293009541175949, 'y': 0.9285261529379989, 'z': -0.40016980565154636}}, 'ros_timestamp': 1.6505721905986575e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 30, 598000)}, 'changing_from': 'ThankOperator', 'changing_to': 'SetNavToStart', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 1131}, {'_id': ObjectId('6261bb9ed0dbf8b6bf86cadd'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.6428027729815262, 'x': -0.5933473490119393, 'y': 0.3305895193802273, 'z': -0.35419498605106475}, 'position': {'x': 0.7293009541175949, 'y': 0.9285261529379989, 'z': -0.40016980565154636}}, 'ros_timestamp': 1.6505721906032108e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 30, 603000)}, 'changing_from': 'SetNavToStart', 'changing_to': 'NavToStart', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 1132}, {'_id': ObjectId('6261bba7d0dbf8b6bf86cb51'), 'base_info': {'entry_type': 1, 'location': {'orientation': {'w': -0.538458905606037, 'x': -0.8319856464352557, 'y': 0.11347819178590093, 'z': -0.07060163658344187}, 'position': {'x': 1.2289117243022094, 'y': 1.1605530941784419, 'z': -0.19213763203051892}}, 'ros_timestamp': 1.6505721993104566e+18, 'global_timestamp': datetime.datetime(2022, 4, 21, 21, 16, 39, 310000)}, 'changing_from': 'NavToStart', 'changing_to': 'Finish', 'previous_state_result': 2, 'session_num': 52, 'entry_uid': 1248}]}]
+'''
+
+state_change_result_dict = {
+        0 : "NULL",
+        1 : "UNKNOWN",
+        2 : "SUCCESS",
+        3 : "TASK_SUCCESS",
+        4 : "CLARIFY",
+        5 : "SUCCESS_PICK_UP",
+        16 : "FAILURE",
+        32 : "REPEATED_FAILURE",
+        64 : "TASK_FAILURE"
+    }
 
 def translate_quaternion_to_euler(x,y,z,w):
     ysqr = y * y
@@ -86,9 +110,11 @@ def relations_from_robot_perspective(robot_orientation, object_a, object_b):
     return (frontedness, leftness, upness)
 
 class RobotDialogueManager(DialogueKBManager):
-    def __init__(self, mpnn, convqa, triples2text,db_port = 27017, knowledge_base_args={'session':(2022,4,21)}) -> None:
+    def __init__(self, mpnn, convqa, triples2text,db_port = 27017, knowledge_base_args={'session':(2022,4,26)}) -> None:
         self.ebb_interface = EBB_interface(port=db_port)
         self.observed_objects = set()
+        self.observed_dialogues = set()
+        self.observed_state_changes = set()
         self.map_to_old_id = {}
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
 
@@ -104,9 +130,14 @@ class RobotDialogueManager(DialogueKBManager):
         # print(output)
         statement_array =[]
         object_graph = DiGraph()
+        dialogue_graph = DiGraph()
+        state_graph = DiGraph()
+        time_graph = DiGraph()
         times = []
 
         for output in output:
+            ### OBSERVATIONS
+            
             _, statement_array = self.ebb_interface.state_observations_list(output["observations_coll"], statement_array)
             # print("\n\n\n\n lets a go")
             # print(statement_array)
@@ -115,7 +146,7 @@ class RobotDialogueManager(DialogueKBManager):
             object_observations = observations[3]
             time = observations[1]
             times.append(time)
-            location_dict = {}
+            obs_location_dict = {}
             object_graph.add_edge("robot", "you", label="is_known_as")
             object_graph.add_edge("you","robot", label="is_known_as")
             for observation in object_observations:
@@ -131,7 +162,7 @@ class RobotDialogueManager(DialogueKBManager):
                 self.map_to_old_id[obj_id] = old_obj_id
                 obj_colour = observation["obj_colour"]
                 prev_identified = observation["obj_previously_identified"]
-                location_dict[obj_id]=obj_location
+                obs_location_dict[obj_id]=obj_location
                 obj_relation_to_robot = relations_from_robot_perspective(robot_orientation, obj_location, robot_location)
                 object_graph.add_edge(obj_id, "robot", label=obj_relation_to_robot[0])
                 object_graph.add_edge(obj_id, "robot", label=obj_relation_to_robot[1])
@@ -143,52 +174,162 @@ class RobotDialogueManager(DialogueKBManager):
                     object_graph.add_edge(obj_id, str(time), label="reobserved at")
                 else:
                     object_graph.add_edge(obj_id, str(time), label="first observed at")
+
+            
             # compute positional relations between observed objects
-            for obj_id in location_dict:
-                for other_obj_id in location_dict:
+            for obj_id in obs_location_dict:
+                for other_obj_id in obs_location_dict:
                     if obj_id != other_obj_id:
-                        obj_location = location_dict[obj_id]
-                        other_obj_location = location_dict[other_obj_id]
+                        obj_location = obs_location_dict[obj_id]
+                        other_obj_location = obs_location_dict[other_obj_id]
                         obj_relation_to_other = relations_from_robot_perspective(robot_orientation, obj_location, other_obj_location)
                         object_graph.add_edge(obj_id, other_obj_id, label=obj_relation_to_other[0])
                         object_graph.add_edge(obj_id, other_obj_id, label=obj_relation_to_other[1])
                         object_graph.add_edge(obj_id, other_obj_id, label=obj_relation_to_other[2])
+            for obj_id in obs_location_dict:
+                object_graph.add_edge(obj_id, "object", label="is an")
+                object_graph.add_edge("object", obj_id, label="has member")
+            print(object_graph.edges(data=True))
 
-            # compute temporal relations between observations and add to graph
+            ### DIALOGUE
+            
+            statement_array = self.ebb_interface.getCollectionFromEBB(["dialogue_speak_and_listen"],[session_num])
+            # parse dialogue
+            assert len(statement_array)>0
+            dialogue = statement_array[0]
+            robot_said_prev = None
+            human_said_prev = None
+            turn_prev_id = None
+
+            for turn in dialogue["dialogue_speak_and_listen"]:
+                robot_said = turn["robot_question"]
+                human_said = turn["human_response"]
+                self.observed_dialogues.add(turn["entry_uid"])
+                time = turn["base_info"]["global_timestamp"]
+                times.append(time)
+
+                turn_id = f"turn {len(self.observed_dialogues)}"
+                # add to graph
+                dialogue_graph.add_edge("robot", robot_said, label="said")
+                dialogue_graph.add_edge("human", human_said, label="said")
+
+                dialogue_graph.add_edge(robot_said, f"turn {len(self.observed_dialogues)}", label="said during")
+                dialogue_graph.add_edge(turn_id, robot_said, label="said during")
+                dialogue_graph.add_edge(human_said, f"turn {len(self.observed_dialogues)}", label="said during")
+                dialogue_graph.add_edge(turn_id, human_said, label="said during")
+
+                if turn_prev_id is not None:
+                    dialogue_graph.add_edge(turn_prev_id, turn_id, label="followed by")
+                    dialogue_graph.add_edge(turn_id, turn_prev_id, label="preceded by")
+                else:
+                    dialogue_graph.add_edge("start", turn_id, label="is at")
+                    dialogue_graph.add_edge(turn_id, "first", label="is")
+                    dialogue_graph.add_edge("start", "first", label="is")
+                    dialogue_graph.add_edge("first", "start", label="is")
+
+
+                dialogue_graph.add_edge(turn_id, str(time), label="said at")
+                dialogue_graph.add_edge(human_said, robot_said, label="said in response to")
+
+                if robot_said_prev is not None:
+                    dialogue_graph.add_edge(robot_said_prev, robot_said, label="said after")
+                    dialogue_graph.add_edge(human_said_prev, human_said, label="said after")
+                    dialogue_graph.add_edge(robot_said, human_said_prev, label="response to")
+
+                
+                robot_said_prev = robot_said
+                human_said_prev = human_said
+                turn_prev_id = turn_id
+                
+            ### STATE CHANGES
+            
+            statement_array = self.ebb_interface.getCollectionFromEBB(["state_changes_coll"],[session_num])
+            # parse state changes
+            assert len(statement_array)>0
+            state_changes = statement_array[0]
+            for state_change in state_changes["state_changes_coll"]:
+                self.observed_state_changes.add(state_change["entry_uid"])
+
+                prev_state = state_change["changing_from"]
+                cur_state = state_change["changing_to"]
+                prev_state_result = state_change_result_dict[state_change["previous_state_result"]]
+
+                state_graph.add_edge(cur_state, "state", label="is")
+                state_graph.add_edge("state", cur_state, label="is")
+                state_graph.add_edge(prev_state, "state", label="is")
+                state_graph.add_edge("state", prev_state, label="is")
+                
+                state_change_id = f"{len(self.observed_state_changes)} state change"
+
+                state_graph.add_edge(state_change_id, prev_state_result, label=prev_state_result)
+
+                state_graph.add_edge(prev_state,state_change_id,label="changed from")
+                state_graph.add_edge(state_change_id,cur_state,label="changed in")
+                
+                state_graph.add_edge(cur_state,state_change_id,label="changed to at")
+                state_graph.add_edge(state_change_id,cur_state,label="changed to")
+
+                state_graph.add_edge(prev_state,cur_state,label="change to")
+
+                
+                time = state_change["base_info"]["global_timestamp"]
+                times.append(time)
+                
+                state_graph.add_edge(state_change_id, str(time), label="changed at")
+                state_graph.add_edge(str(time), state_change_id, label="changed at")
+                state_graph.add_edge(prev_state_result, str(time), label="occured at")
+                state_graph.add_edge(str(time), prev_state_result, label="occured at")
+
+
+
+            # compute temporal relations between temporal events and add to graph
             threshold = 0.5
-            for t1, t2 in zip(times, times):
-                if t1 != t2:
-                    delta_time = t2 - t1
-                    if delta_time.total_seconds > threshold:
-                        object_graph.add_edge(str(t2), str(t1), label="is_after")
-                        object_graph.add_edge(str(t1), str(t2), label="is_before")
-                    elif delta_time.total_seconds < - threshold:
-                        object_graph.add_edge(str(t1), str(t2), label="is_after")
-                        object_graph.add_edge(str(t2), str(t1), label="is_before")
-                    else:
-                        object_graph.add_edge(str(t1), str(t2), label="is_same_time_as")
-                        object_graph.add_edge(str(t2), str(t1), label="is_same_time_as")
-                    
+
+            # sort times and extract relations
+            times.sort()
+            for i in range(len(times)-1):
+                time = times[i]
+                other_time = times[i+1]
+                delta_time = (time - other_time).total_seconds()
+                if delta_time > threshold:
+                    time_graph.add_edge(str(time), str(other_time), label="after")
+                elif delta_time < -threshold:
+                    time_graph.add_edge(str(time), str(other_time), label="before")
+                else:
+                    time_graph.add_edge(str(time), str(other_time), label="similar time to")
+
+        
 
         # remove location attributes from graph
-        print(object_graph)
-        return [object_graph]
+        return [
+            object_graph,
+            dialogue_graph,
+            state_graph,
+            time_graph
+        ]
 
 
 if __name__ == '__main__':
-    convqa = ConvQASystem().load_from_hf_checkpoint("./dialogsystem/trained_models/convqa")
-    triples2text = Triples2TextSystem.load_from_checkpoint("dialogsystem/trained_models/t2t.ckpt").load_from_hf_checkpoint("./dialogsystem/trained_models/t2t/t2ttrained")
+    convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
+    triples2text = Triples2TextSystem("./dialogsystem/trained_models/t2t/t2ttrained")
     # print(triples2text)
     # print(triples2text(["graph, is used in, China"]))
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqamodel.ckpt")
     mpnn.k = 10
     rdm = RobotDialogueManager(mpnn,convqa,triples2text)
+    quit = False
+    while not quit:
+        user_input = input("input: ")
+        if user_input == "quit":
+            quit = True
+        else:
+            print(rdm.question_and_response(user_input))
     # rdm.question_and_response("where is the person in relation to the robot")
     # rdm.question_and_response("Who did you talk to?")
     # rdm.question_and_response("and to whom did you bring the object?")
     # rdm.question_and_response("what did you bring the person?")
     # rdm.question_and_response("where did you find the object?")
-    rdm.question_and_response("what objects did you see on the table?")
+    # rdm.question_and_response("what objects did you see on the table?")
     # rdm.question_and_response("what did you do after picking up the plant?")
     rdm.save_logs("logs/")
     # orientation = [1,0,0]
