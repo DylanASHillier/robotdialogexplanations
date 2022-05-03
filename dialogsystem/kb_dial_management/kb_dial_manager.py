@@ -11,6 +11,7 @@ from dialogsystem.kb_retrieval.graph_construction import GraphConstructor
 from dialogsystem.models.GraphEmbedder import GraphTransformer
 from dialogsystem.models.triples2text import Triples2TextSystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
+from dialogsystem.models.convqa import ConvQASystem
 
 
 class DialogueKBManager():
@@ -51,11 +52,13 @@ class DialogueKBManager():
             'extracted_answers': [],
             'extracted_context': [],
         }
+        self.turn_tracker = 0
 
     def _reset(self):
         self.dialogue_graph = DiGraph()
         self.dialogue_context = ""
         self.entity_queue = []
+        self.turn_tracker = 0
 
     def initialise_kbs(self, **knowledge_base_args) -> list[DiGraph]:
         '''
@@ -71,6 +74,7 @@ class DialogueKBManager():
         for i,graph in enumerate(self.logs["base_graphs"]):
             draw(graph,with_labels=True)
             plt.savefig(f"{folder}/basegraph{i}.png")
+            plt.close()
         # save extracted graphs to json
         for i,graph in enumerate(self.logs["extracted_graphs"]):
             write_gpickle(graph,f"{folder}/extractedgraph{i}.json")
@@ -78,6 +82,7 @@ class DialogueKBManager():
         for i,graph in enumerate(self.logs["extracted_graphs"]):
             draw(graph,with_labels=True)
             plt.savefig(f"{folder}/extractedgraph{i}.png")
+            plt.close()
         # save remaining data to json, skipping base graphs and extracted graphs
         data = {
             'questions': self.logs['questions'],
@@ -95,10 +100,22 @@ class DialogueKBManager():
     def _pre_process_graph(self, graph):
         return self.graph_transformer.update(DiGraph(),graph)
 
-    def _update_dialogue_graph(self, triples):
+    def _update_dialogue_graph(self, triples, question, answer, extracted_text):
         update = DiGraph()
+        turn = f"turn: {self.turn_tracker}"
         for triple in triples:
-            update.add_edge(triple[0], triple[2], label=triple[1])
+            update.add_edge(extracted_text,','.join(triple),label='extracted from')
+            update.add_edge(','.join(triple),turn, label='extracted in')
+        update.add_edge(question,turn,label="asked in")
+        update.add_edge(answer,turn,label="answered in")
+        update.add_edge(extracted_text,turn,label="extracted text in")
+ 
+        if self.turn_tracker>0:
+            update.add_edge(turn,f"turn: {self.turn_tracker-1}",label="previous turn")
+            update.add_edge(f"turn: {self.turn_tracker-1}",turn,label="next turn")
+        else:
+            update.add_edge(turn,"first turn",label="is")
+            update.add_edge("first turn",turn,label="is")
         self.dialogue_graph = self.graph_transformer.update(self.dialogue_graph, update)
 
     def question_and_response(self,question: str):
@@ -109,12 +126,14 @@ class DialogueKBManager():
         triples = self._run_mpnn(data)
         self.logs['extracted_triples'].append(triples)
         triples = [triple.split(",") for triple in triples]
-        self._update_dialogue_graph(triples)
+        
         text = self._run_triples2text(triples)
         self.logs['extracted_text'].append(text)
         answer = self._run_convqa(question, text)
         self.logs['extracted_answers'].append(answer)
+        self._update_dialogue_graph(triples, question, answer, text)
         self._update_dialogue_context(question, answer)
+        self.turn_tracker += 1
         return answer
 
     def _update_dialogue_context(self,question, answer):
@@ -134,12 +153,9 @@ class DialogueKBManager():
             entities = self.candidategenerator.trim(question,entities)
             self.graph_constructor.input_nx_graph_with_trimming(kb, entities, 1)
             all_entities += entities
-        self._update_dialogue_graph([(entity,"candidate match for", question) for entity in entities])
         return self.graph_constructor.build_graph()
     
     def _transform_graph(self,graph, question):
-        # self.processed_graph = self.graph_transformer.update(self.processed_graph, graph, False)
-        # print(graph)
         data = self.graph_transformer.transform(graph, False)
         data = self.graph_transformer.add_query(data, question)
         return data
@@ -171,7 +187,7 @@ class DialogueKBManager():
     def _run_triples2text(self,triples):
         # print(triples)
         triples = self._coalesce_triples(triples)
-        print(f"coalesced triples: {triples}")
+        # print(f"coalesced triples: {triples}")
         return '\n'.join(self.triples2text(triples))
 
     def _run_convqa(self,question, background_text):
@@ -182,8 +198,8 @@ class DialogueKBManager():
 
 
 if __name__ == "__main__":
-    convqa = lambda x: "i'm not sure"
-    triples2text = Triples2TextSystem.load_from_checkpoint("dialogsystem/trained_models/t2t.ckpt")
+    convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
+    triples2text = Triples2TextSystem("./dialogsystem/trained_models/t2t/t2ttrained")
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/meddim.ckpt")
     mpnn.k = 3
     kb_manager = DialogueKBManager([],mpnn,convqa,triples2text)
