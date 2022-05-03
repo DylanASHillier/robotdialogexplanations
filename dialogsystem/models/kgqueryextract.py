@@ -4,9 +4,11 @@ from torch.nn import Conv1d, ELU, MSELoss, Linear
 from torch import sigmoid, topk
 from pytorch_lightning import LightningModule
 from torch.optim import Adam
+from torch_geometric.nn import avg_pool_neighbor_x
+from torch_geometric.data import Data
 
 class LightningKGQueryMPNN(LightningModule):
-    def __init__(self, embedding_size=None, hidden_dim=50, k=20, num_layers=4, lr=1e-3, heads=4):
+    def __init__(self, embedding_size=None, hidden_dim=50, k=20, num_layers=4, lr=1e-3, heads=4, avg_pooling=True):
         '''
         Operates over a graph to obtain the indices of edges that should be used in the knowledge graph
         Arguments:
@@ -25,6 +27,7 @@ class LightningKGQueryMPNN(LightningModule):
         self.k = k
         self.lr = lr
         self.loss = MSELoss()
+        self.avg_pooling = avg_pooling
         self.save_hyperparameters()
 
     def forward(self, x, edge_index):
@@ -35,7 +38,14 @@ class LightningKGQueryMPNN(LightningModule):
             x = self.activations[i](x)
         x = self.final_layer(x)
         x = sigmoid(x).squeeze()
-        return topk(x,min(self.k,x.size(0)))[1]
+        if self.avg_pooling:
+            pool_graph = Data(x=x,edge_index=edge_index)
+            avg = avg_pool_neighbor_x(pool_graph).x
+            output = topk(avg,min(self.k,avg.size(0)))[1]
+        else:
+            output = topk(x,min(self.k,x.size(0)))[1]
+        return output
+
 
     def training_step(self, batch):
         x = batch.x
