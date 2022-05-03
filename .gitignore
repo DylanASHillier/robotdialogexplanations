@@ -139,3 +139,7 @@ dmypy.json
 !requirements.txt
 *.model
 *.DS_Store
+.neptune/
+datasets/KGs/conceptnet*
+dialogsystem/trained_models/*
+!dialogsystem/trained_models/README.md
