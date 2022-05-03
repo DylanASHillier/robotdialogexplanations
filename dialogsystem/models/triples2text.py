@@ -9,20 +9,16 @@ class Triples2TextSystem(LightningModule):
     source = "triple"
     prefix = "translate triples to text: "
     '''
-    def __init__(self,base_model="t5",lr=1e-5):
+    def __init__(self,model_checkpoint="t5-small",lr=1e-5):
         super(Triples2TextSystem,self).__init__()
-        self.tokenizer = AutoTokenizer.from_pretrained(base_model)
-        self.model = T5ForConditionalGeneration.from_pretrained(base_model)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+        self.model = T5ForConditionalGeneration.from_pretrained(model_checkpoint)
         self.lr = lr
         self.prefix = "translate triples to text: "
         self.save_hyperparameters()
 
     def setup_train(self):
         self.model.train()
-
-    def load_from_hf_checkpoint(self, checkpoint_path):
-        self.model = T5ForConditionalGeneration.from_pretrained(checkpoint_path)
-        return self
 
     def forward(self,input):
         '''
