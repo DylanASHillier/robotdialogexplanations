@@ -1,4 +1,5 @@
 # evaluate trained conv_qa model on coqa dataset
+import sagemaker
 from models.convqa import ConvQASystem
 import argparse
 from datasets import load_dataset
@@ -43,7 +44,8 @@ prefix = "Answer the Question: "
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    model = ConvQASystem("dialogsystem/trained_models/convqa")
+    print("ready")
+    model = ConvQASystem(args.model_path)
     
     dataset = load_dataset("coqa")
     ds_test = dataset["validation"]

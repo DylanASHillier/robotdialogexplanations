@@ -12,9 +12,9 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=8, help='batch size')
     parser.add_argument('--num_workers', type=int, default=4, help='number of workers')
     parser.add_argument('--shuffle', action='store_true', help='shuffle data')
-    parser.add_argument('--num_epochs', type=int, default=1, help='number of epochs')
+    parser.add_argument('--num_epochs', type=int, default=3, help='number of epochs')
     parser.add_argument('--lr', type=float, default=5e-5, help='learning rate')
-    parser.add_argument('--model_output_path', type=str, default='models/trained_models/t2t',help='Where model is stored after training')
+    parser.add_argument('--model_output_path', type=str, default='models/trained_models/convqa',help='Where model is stored after training')
     parser.add_argument('--model_name', type=str, default='t5-base', help='model name')
     return parser.parse_args()
 
