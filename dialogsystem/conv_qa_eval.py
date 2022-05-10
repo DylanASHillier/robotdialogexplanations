@@ -1,5 +1,4 @@
 # evaluate trained conv_qa model on coqa dataset
-import sagemaker
 from models.convqa import ConvQASystem
 import argparse
 from datasets import load_dataset
