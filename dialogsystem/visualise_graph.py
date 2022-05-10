@@ -7,12 +7,15 @@ import dash_cytoscape as cyto
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--graph_file", default="extractedgraph0" ,help="name of graph file")
+parser.add_argument("--trim_nodes", default=0, type=int, help="number of nodes to trim the graph to, 0 for no trimming")
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
     cyto.load_extra_layouts()
     graph = gpickle.read_gpickle(f"logs/{args.graph_file}.json")
+    if args.trim_nodes > 0:
+        graph = graph.subgraph(list(graph.nodes)[:args.trim_nodes])
     node_elements = [
         {'data': {'id': node, 'label': node}} for node in graph.nodes
     ]

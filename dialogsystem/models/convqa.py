@@ -23,9 +23,15 @@ class ConvQASystem(LightningModule):
         with no_grad():
             input = self.tokenizer(input, truncation=True, padding=True, return_tensors="pt").input_ids
             outputs = self.model.generate(input)
-            outputs = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            outputs = [self.tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+            if len(outputs) == 1:
+                return outputs[0]
             return outputs
 
     def configure_optimizers(self):
         return Adam(self.parameters(), self.lr)
-        
+
+if __name__ == "__main__":
+    model = ConvQASystem("dialogsystem/trained_models/convqa")
+    print(model("What is the weather in New York?"))
+    print(model(["What is the weather in New York?","What is the weather in London?"]))
