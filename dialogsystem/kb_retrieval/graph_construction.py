@@ -51,4 +51,9 @@ class GraphConstructor():
         self.graph.add_edge(triple[0]["id"],triple[2]["id"],label=triple[1]["label"])
 
     def build_graph(self):
-        return self.graph
+        '''
+        builds the graph, and resets the graph constructor
+        '''
+        output =  self.graph
+        self.reset()
+        return output
