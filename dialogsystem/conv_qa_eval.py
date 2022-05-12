@@ -80,8 +80,6 @@ if __name__ == '__main__':
                 ,
                 "id": mock_idx
             }
-            if input==target:
-                print("heya")
             if domain in in_domain:
                 in_metrics.update(squad_prediction, squad_target)
             elif domain in out_domain:
