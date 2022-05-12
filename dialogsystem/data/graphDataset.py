@@ -79,6 +79,7 @@ class GraphTrainDataset(Dataset):
                 with zf.open(file) as f:
                     graph = load(f)
                     if not graph.num_nodes:
+                        graph.num_nodes=0
                         return graph
                     assert(graph.y is not None)
                     return graph
