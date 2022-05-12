@@ -80,10 +80,7 @@ class GraphTrainDataset(Dataset):
                     graph = load(f)
                     if not graph.num_nodes:
                         return graph
-                    x = graph.x[:,:graph.x.size(1)-1]
-                    y = graph.x[:,-1]
-                    graph.x = x
-                    graph.y = y
+                    assert(graph.y is not None)
                     return graph
 
     def len(self):
