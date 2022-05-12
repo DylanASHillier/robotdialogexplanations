@@ -51,6 +51,8 @@ class LightningKGQueryMPNN(LightningModule):
         x = batch.x
         y = batch.y
         edge_index = batch.edge_index
+        if x is None:
+            return None
         if self.init_layer:
             x = self.init_layer(x)
         for i,layer in enumerate(self.hidden_layers):

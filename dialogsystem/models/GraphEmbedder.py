@@ -105,11 +105,21 @@ def _switch_dict(attribute_dict):
     return out_dict
 
 class GraphTransformer(Module):
-    def __init__(self,lm_string="google/byt5-small") -> None:
+    def __init__(self,lm_string="t5-small") -> None:
         """
         Class for handling embedding of networkx graph with a language model, transformation to torch_geometric, and query embedding
         Arguments:
             lm_string: name of encoder decoder language model used for embedding the query and graph
+
+        Methods:
+            embed_query: used for adding the query embedding to each node
+            embed: used for embedding the graph, returns embedded edge labels
+            update: used for updating the embedded graph with new triples
+            forward: calls the main transformations, excluding the addtion of the query embedding
+
+        Thus typical usage is just:
+        graph_data = gt(graph)
+        graph_data = embed_query(graph_data, query)
         """
         super(GraphTransformer,self).__init__()
         lmodel = T5ForConditionalGeneration.from_pretrained(lm_string).encoder
@@ -200,8 +210,14 @@ class GraphTransformer(Module):
         nxgraph = self._update_attributes(nxgraph, edge_attributes, edge_labels, relevance_label = relevance_label)
         return self.transform(nxgraph, relevance_label = relevance_label)
 
-    def add_query(self, graph_data, query):
+    def add_query(self, graph_data, query, relevance_label=True):
+        """
+        Adds the query to the embedding... also seperates out the label from the attributes
+        """
         query_embedding = self.lm_embedder(query)
+        if relevance_label:
+            graph_data.y = graph_data.x[:,-1]
+            graph_data.x = graph_data.x[:,:-1]
         graph_data.x = cat([graph_data.x,query_embedding.expand((graph_data.x.size(0),-1))], dim=1) ## concats on query embedding
         return graph_data
 
