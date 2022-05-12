@@ -2,7 +2,7 @@ from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear, MSELoss
 from torch.optim import Adam
-from torch import cat, tanh, mean, no_grad, tensor
+from torch import cat, tanh, mean, no_grad, tensor, zeros
 from networkx import compose, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
 from torch_geometric.utils import from_networkx, remove_self_loops
 from torch_geometric.transforms import LineGraph
@@ -61,6 +61,8 @@ class LMEmbedder(Module):
                 output = self.encoder(ttext)
                 output = mean(output[0],dim=1)
             else:
+                if len(text) == 0:
+                    return zeros((0,))
                 ttext = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True).input_ids
                 ttexts = [ttext[i:i+self.max_batchsize] for i in range(0,len(ttext),self.max_batchsize)]
                 outputs = []
