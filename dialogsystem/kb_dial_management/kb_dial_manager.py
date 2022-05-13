@@ -3,6 +3,7 @@ from networkx import DiGraph, get_edge_attributes, read_gpickle, write_gpickle, 
 import json
 import sys
 from os.path import dirname
+from torch import topk
 
 sys.path.append(dirname("./dialogsystem"))
 
@@ -22,7 +23,7 @@ class DialogueKBManager():
     To use:
         implement initialise_kbs
     '''
-    def __init__(self,knowledge_base_args,mpnn,convqa,triples2text) -> None:
+    def __init__(self,knowledge_base_args,mpnn,convqa,triples2text,top_k=3) -> None:
         '''
         knowledge_bases: dict of knowledge base arguments used by `initialise_kbs` to create the knowledge bases
         mpnn: module that runs the message passing neural network
@@ -43,6 +44,7 @@ class DialogueKBManager():
         self._reset()
         self.kbs = self.initialise_kbs(**knowledge_base_args)
         self.kbs = [self._pre_process_graph(kb) for kb in self.kbs]
+        self.top_k=top_k
         self.logs = {
             'questions': [],
             'base_graphs': self.kbs+[self.dialogue_graph],
@@ -157,12 +159,13 @@ class DialogueKBManager():
     
     def _transform_graph(self,graph, question):
         data = self.graph_transformer.transform(graph, False)
-        data = self.graph_transformer.add_query(data, question)
+        data = self.graph_transformer.add_query(data, question, relevance_label=False)
         return data
 
     def _run_mpnn(self,data):
-        topk = self.mpnn(data.x, data.edge_index).tolist()
-        triples = [data.edge_label[idx] for idx in topk]
+        output = self.mpnn(data.x, data.edge_index)
+        output=topk(output, min(self.top_k, output.size(0)))[1]
+        triples = [data.edge_label[idx] for idx in output]
         return triples
 
     def _coalesce_triples(self,triples):
@@ -200,9 +203,9 @@ class DialogueKBManager():
 if __name__ == "__main__":
     convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
     triples2text = Triples2TextSystem("./dialogsystem/trained_models/t2t/t2ttrained")
-    mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/meddim.ckpt")
+    mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.k = 3
-    kb_manager = DialogueKBManager([],mpnn,convqa,triples2text)
+    kb_manager = DialogueKBManager({},mpnn,convqa,triples2text)
     from random import sample
     graph = read_gpickle("datasets/KGs/conceptnet.json")
     random_nodes = sample(list(graph.nodes),10000)
@@ -223,7 +226,7 @@ if __name__ == "__main__":
         ("spider","eats","banana"),
         ("eagles","eat","electricity")
         ]
-    kb_manager._update_dialogue_graph(triples)
+    kb_manager._update_dialogue_graph(triples,"spider bananas", "i don't understand", "arachnid next to banana")
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
