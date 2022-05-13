@@ -2,15 +2,12 @@
 Script for preparing data from scene graphs to be used at train time
 '''
 from data.gqaDataset import gqa
-from kb_retrieval.data_extraction import DataExtractor
 from kb_retrieval.graph_construction import GraphConstructor
 from kb_retrieval.candidate_trimming import CandidateGenerator
 from tqdm import tqdm
-from data import qtext
 import argparse
 from networkx.readwrite import gpickle
 from networkx import set_edge_attributes, get_edge_attributes
-from math import floor
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -29,7 +26,6 @@ def get_pair(entity):
         return entity[0], entity[1]['label']
 
 if __name__ == '__main__':
-    de = DataExtractor()
     args = parse_arguments()
     ds = gqa(args.split)
     for i,(question,answer,graph) in tqdm(enumerate(ds)):
@@ -44,9 +40,9 @@ if __name__ == '__main__':
         background_entities = cg.trim(answer,all_entities)
         background_relation_labels = cg.trim(answer,all_relations)
         gc.input_nx_graph_with_trimming(graph, question_entities, 3)
-        processed_graph = gc.build_graph()
         potentially_relevant = gc.extract_relevant_nodes(graph,background_entities,1)
         edge_label_dict = {}
+        processed_graph = gc.build_graph()
         edges = processed_graph.edges(data=True)
         for edge in edges:
             u,v,label = edge

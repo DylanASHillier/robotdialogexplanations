@@ -6,7 +6,7 @@ from kb_retrieval.candidate_trimming import CandidateGenerator
 from tqdm import tqdm
 from networkx import set_edge_attributes, get_edge_attributes
 from numpy import random
-from torch import mean, topk
+from torch import mean, topk, nan_to_num
 
 def get_pair(entity):
     '''
@@ -77,7 +77,7 @@ if __name__ == '__main__':
                     samples["failed_extraction"]+=1
                 else:
                     precision = sum(labels>2)/len(labels)
-                    recall = sum(labels>2)/sum(data.y>2)
+                    recall = nan_to_num(sum(labels>2)/sum(data.y>2),0)
                     samples["precision@"+str(i)]+=precision.item()
                     samples["recall@"+str(i)]+=recall.item()
 

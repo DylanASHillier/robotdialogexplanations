@@ -1,5 +1,6 @@
 ### Parse OWL ontology
 ### Extract KG from episodic memories
+from curses import window
 import sys
 from os.path import dirname
 from networkx import DiGraph
@@ -126,7 +127,7 @@ class RobotDialogueManager(DialogueKBManager):
         sessions = self.ebb_interface.getSessionNums_date(*session)
         print(f"choose a session from: {sessions}")
         session_num = int(input("session number: "))
-        output = self.ebb_interface.getCollectionFromEBB(["observations_coll"],[session_num])
+        outputs = self.ebb_interface.getCollectionFromEBB(["observations_coll"],[session_num])
         # print(output)
         statement_array =[]
         object_graph = DiGraph()
@@ -135,7 +136,7 @@ class RobotDialogueManager(DialogueKBManager):
         time_graph = DiGraph()
         times = []
 
-        for output in output:
+        for output in outputs:
             ### OBSERVATIONS
             
             _, statement_array = self.ebb_interface.state_observations_list(output["observations_coll"], statement_array)
@@ -144,13 +145,13 @@ class RobotDialogueManager(DialogueKBManager):
             assert(len(statement_array))>0
             observations = statement_array[0]
             object_observations = observations[3]
-            time = observations[1]
-            times.append(time)
             obs_location_dict = {}
             object_graph.add_edge("robot", "you", label="is_known_as")
             object_graph.add_edge("you","robot", label="is_known_as")
             for observation in object_observations:
                 base_info = observation["base_info"]
+                time = base_info["global_timestamp"]
+                times.append(time)
                 obj_location = observation["location_of_object"]["position"]
                 robot_location = base_info["location"]["position"]
                 robot_orientation = base_info["location"]["orientation"]
@@ -210,13 +211,21 @@ class RobotDialogueManager(DialogueKBManager):
 
                 turn_id = f"turn {len(self.observed_dialogues)}"
                 # add to graph
-                dialogue_graph.add_edge("robot", robot_said, label="said")
-                dialogue_graph.add_edge("human", human_said, label="said")
+                if robot_said != "[NONE]":
+                    dialogue_graph.add_edge("robot", robot_said, label="said")
+                    dialogue_graph.add_edge(robot_said, f"turn {len(self.observed_dialogues)}", label="said during")
+                    dialogue_graph.add_edge(turn_id, robot_said, label="said during")
 
-                dialogue_graph.add_edge(robot_said, f"turn {len(self.observed_dialogues)}", label="said during")
-                dialogue_graph.add_edge(turn_id, robot_said, label="said during")
-                dialogue_graph.add_edge(human_said, f"turn {len(self.observed_dialogues)}", label="said during")
-                dialogue_graph.add_edge(turn_id, human_said, label="said during")
+                if human_said != "[NONE]":
+                    dialogue_graph.add_edge("human", human_said, label="said")
+                    dialogue_graph.add_edge(human_said, f"turn {len(self.observed_dialogues)}", label="said during")
+                    dialogue_graph.add_edge(turn_id, human_said, label="said during")
+                    dialogue_graph.add_edge(turn_id, str(time), label="said at")
+                    dialogue_graph.add_edge(human_said, robot_said, label="said in response to")
+                    if robot_said_prev is not None:
+                        dialogue_graph.add_edge(robot_said_prev, robot_said, label="said after")
+                        dialogue_graph.add_edge(human_said_prev, human_said, label="said after")
+                        dialogue_graph.add_edge(robot_said, human_said_prev, label="response to")
 
                 if turn_prev_id is not None:
                     dialogue_graph.add_edge(turn_prev_id, turn_id, label="followed by")
@@ -227,14 +236,6 @@ class RobotDialogueManager(DialogueKBManager):
                     dialogue_graph.add_edge("start", "first", label="is")
                     dialogue_graph.add_edge("first", "start", label="is")
 
-
-                dialogue_graph.add_edge(turn_id, str(time), label="said at")
-                dialogue_graph.add_edge(human_said, robot_said, label="said in response to")
-
-                if robot_said_prev is not None:
-                    dialogue_graph.add_edge(robot_said_prev, robot_said, label="said after")
-                    dialogue_graph.add_edge(human_said_prev, human_said, label="said after")
-                    dialogue_graph.add_edge(robot_said, human_said_prev, label="response to")
 
                 
                 robot_said_prev = robot_said
@@ -261,24 +262,22 @@ class RobotDialogueManager(DialogueKBManager):
                 
                 state_change_id = f"{len(self.observed_state_changes)} state change"
 
-                state_graph.add_edge(state_change_id, prev_state_result, label=prev_state_result)
+                state_graph.add_edge(state_change_id, prev_state_result, label="has result")
 
-                state_graph.add_edge(prev_state,state_change_id,label="changed from")
-                state_graph.add_edge(state_change_id,cur_state,label="changed in")
-                
-                state_graph.add_edge(cur_state,state_change_id,label="changed to at")
+                state_graph.add_edge(state_change_id,prev_state,label="changed from")
                 state_graph.add_edge(state_change_id,cur_state,label="changed to")
-
-                state_graph.add_edge(prev_state,cur_state,label="change to")
+                
+                state_graph.add_edge(prev_state,state_change_id,label="changed in")
+                state_graph.add_edge(cur_state,state_change_id,label="changed in")
 
                 
                 time = state_change["base_info"]["global_timestamp"]
                 times.append(time)
                 
-                state_graph.add_edge(state_change_id, str(time), label="changed at")
-                state_graph.add_edge(str(time), state_change_id, label="changed at")
+                state_graph.add_edge(state_change_id, str(time), label="change during")
+                state_graph.add_edge(str(time), state_change_id, label="had state change")
                 state_graph.add_edge(prev_state_result, str(time), label="occured at")
-                state_graph.add_edge(str(time), prev_state_result, label="occured at")
+                state_graph.add_edge(str(time), prev_state_result, label="had state result")
 
 
 
@@ -287,16 +286,20 @@ class RobotDialogueManager(DialogueKBManager):
 
             # sort times and extract relations
             times.sort()
+
             for i in range(len(times)-1):
                 time = times[i]
-                other_time = times[i+1]
-                delta_time = (time - other_time).total_seconds()
-                if delta_time > threshold:
+                windows = [2^i for i in range(1,10)]
+                windows = filter(lambda x: x< len(times)-i,windows)
+                other_times = [times[window] for window in windows]
+                for other_time in other_times:
+                    delta_time = (time - other_time).total_seconds()
+                    # if delta_time > threshold:
                     time_graph.add_edge(str(time), str(other_time), label="after")
-                elif delta_time < -threshold:
-                    time_graph.add_edge(str(time), str(other_time), label="before")
-                else:
-                    time_graph.add_edge(str(time), str(other_time), label="similar time to")
+                    time_graph.add_edge(str(other_time), str(time), label="before")
+                    # else:
+                    #     time_graph.add_edge(str(time), str(other_time), label="similar time to")
+                    #     time_graph.add_edge(str(other_time), str(time), label="similar time to")
 
         
 
@@ -315,6 +318,7 @@ if __name__ == '__main__':
     # print(triples2text)
     # print(triples2text(["graph, is used in, China"]))
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqamodel.ckpt")
+    mpnn.avg_pooling=False
     mpnn.k = 10
     rdm = RobotDialogueManager(mpnn,convqa,triples2text)
     quit = False
