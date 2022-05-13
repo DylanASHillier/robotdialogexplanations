@@ -81,6 +81,12 @@ class GraphTrainDataset(Dataset):
                     if not graph.num_nodes:
                         graph.num_nodes=0
                         return graph
+                    ## hacks for running out of memory
+                    # elif graph.num_nodes>5000:
+                    #     graph.num_nodes = 5000
+                    #     graph.x = graph.x[:5000]
+                    #     graph.y = graph.y[:5000]
+                    #     graph.edge_index, graph.edge_attributes = subgraph([i for i in range(5000)],graph.edge_index)
                     assert(graph.y is not None)
                     return graph
 
