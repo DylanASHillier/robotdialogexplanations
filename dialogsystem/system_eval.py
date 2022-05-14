@@ -1,5 +1,4 @@
 ## Script for doing ablation studies on the system as a whole using the gqa dataset.
-import sagemaker
 import argparse
 from kb_retrieval.candidate_trimming import CandidateGenerator
 from kb_retrieval.graph_construction import GraphConstructor
@@ -56,70 +55,78 @@ def get_pair(entity):
     else:
         return entity[0], entity[1]['label']
 
-def arg_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="gqa")
-    parser.add_argument("--mpnn", type=str, default="no_mpnn")
-    parser.add_argument("--trimming", type=str, default="no_trimming")
-    parser.add_argument("--t2t", type=str, default="no_t2t")
-    parser.add_argument("--convqa", type=str, default="no_convqa")
-    return parser.parse_args()
+# def arg_parser():
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--dataset", type=str, default="gqa")
+#     parser.add_argument("--mpnn", type=str, default="no_mpnn")
+#     parser.add_argument("--trimming", type=str, default="no_trimming")
+#     parser.add_argument("--t2t", type=str, default="no_t2t")
+#     parser.add_argument("--convqa", type=str, default="no_convqa")
+#     return parser.parse_args()
 
 if __name__=='__main__':
-    args = arg_parser()
-    cg_option = graph_trimming_options[args.trimming]
-    mpnn_options = mpnn_options[args.mpnn]
-    t2t_options = t2t_options[args.t2t]
-    convqa_options = convqa_options[args.convqa]
-    gc = GraphConstructor()
-    if args.dataset == "gqa":
-        ds = gqa("train")
-        random.seed(123)
-        idxs = random.choice(range(len(ds)), size=1000)
-        graph_transformer = GraphTransformer(lm_string="t5-small")
-        scorer = SQuAD()
+    # args = arg_parser()
+    ## iterate over all option combinations:
+    for mpnn_option in mpnn_options.keys():
+        for graph_trimming_option in graph_trimming_options.keys():
+            for t2t_option in t2t_options.keys():
+                for convqa_option in convqa_options.keys():
+                    print(mpnn_option, graph_trimming_option, t2t_option, convqa_option)
+                    cg_option = graph_trimming_options[graph_trimming_option]
+                    mpnn_options = mpnn_options[mpnn_option]
+                    t2t_options = t2t_options[t2t_option]
+                    convqa_options = convqa_options[convqa_option]
+                    gc = GraphConstructor()
+                    # if args.dataset == "gqa":
+                    if True:
+                        ds = gqa("train")
+                        random.seed(123)
+                        idxs = random.choice(range(len(ds)), size=1000)
+                        graph_transformer = GraphTransformer(lm_string="t5-small")
+                        scorer = SQuAD()
 
-        for i in tqdm(idxs):
-            question, answer, graph = ds[i]
-            all_entities= graph.nodes.items()
-            all_entities = {get_pair(entity)[1]:get_pair(entity)[0] for entity in all_entities}
-            all_relations = set(get_edge_attributes(graph,"label").values())
-            all_relations = {relation:relation for relation in all_relations}  
-            
-            # triples, background_entities = query_wikidata(de,question,conv_context,background)
-            cg = CandidateGenerator(5,0.8)
-            question_entities= cg_option(question,all_entities)
-            gc.input_nx_graph_with_trimming(graph, question_entities, 3)
-            edge_label_dict = {}
-            processed_graph = gc.build_graph()
-            if processed_graph.size()>0:
-                processed_graph = graph_transformer(processed_graph, relevance_label=False)
-                data = graph_transformer.add_query(processed_graph,question, relevance_label=False)
-                output = mpnn_options(data.x, data.edge_index)
+                        for i in tqdm(idxs):
+                            question, answer, graph = ds[i]
+                            all_entities= graph.nodes.items()
+                            all_entities = {get_pair(entity)[1]:get_pair(entity)[0] for entity in all_entities}
+                            all_relations = set(get_edge_attributes(graph,"label").values())
+                            all_relations = {relation:relation for relation in all_relations}  
+                            
+                            # triples, background_entities = query_wikidata(de,question,conv_context,background)
+                            cg = CandidateGenerator(5,0.8)
+                            question_entities= cg_option(question,all_entities)
+                            gc.input_nx_graph_with_trimming(graph, question_entities, 3)
+                            edge_label_dict = {}
+                            processed_graph = gc.build_graph()
+                            if processed_graph.size()>0:
+                                processed_graph = graph_transformer(processed_graph, relevance_label=False)
+                                data = graph_transformer.add_query(processed_graph,question, relevance_label=False)
+                                output = mpnn_options(data.x, data.edge_index)
 
-                choices = topk(output, k=min(5,output.size(0))[1]
-                triples = [data.edge_label[choice] for choice in choices]
-                triples_to_text = t2t_options(triples)
+                                choices = topk(output, k=min(5,output.size(0)))[1]
+                                triples = [data.edge_label[choice] for choice in choices]
+                                triples_to_text = t2t_options(triples)
 
-                predicted_answer = convqa_options(f"{background_pref} {triples_to_text}", f" \n {context_pref} \n {question_pref} {question}")
-                squad_prediction = {
-                    "prediction_text": predicted_answer,
-                    "id": i
-                }
-            
-                squad_target = {
-                    "answers": 
-                        {
-                            "answer_start": [i],
-                            "text": [f"{target_pref} {answer}"]
-                        }
-                    ,
-                    "id": i
-                }
-                scorer.update(squad_prediction, squad_target)
-    elif args.dataset == "convqa":
-        pass
-    print(scorer.compute(), f"for {args.mpnn}, {args.trimming}, {args.t2t}, {args.convqa}")
+                                predicted_answer = convqa_options(f"{background_pref} {triples_to_text}", f" \n {context_pref} \n {question_pref} {question}")
+                                squad_prediction = {
+                                    "prediction_text": predicted_answer,
+                                    "id": i
+                                }
+                            
+                                squad_target = {
+                                    "answers": 
+                                        {
+                                            "answer_start": [i],
+                                            "text": [f"{target_pref} {answer}"]
+                                        }
+                                    ,
+                                    "id": i
+                                }
+                                scorer.update(squad_prediction, squad_target)
+                    elif args.dataset == "convqa":
+                        pass
+                    # print(scorer.compute(), f"for {args.mpnn}, {args.trimming}, {args.t2t}, {args.convqa}")
+                    print(scorer.compute(), f"for {mpnn_option}, {graph_trimming_option}, {t2t_option}, {convqa_option}")
 
 
 
