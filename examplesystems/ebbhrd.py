@@ -1,10 +1,6 @@
-### Parse OWL ontology
-### Extract KG from episodic memories
-from curses import window
 import sys
 from os.path import dirname
 from networkx import DiGraph
-from regex import D
 sys.path.append(dirname("./dialogsystem"))
 from dialogsystem.models.convqa import ConvQASystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
@@ -159,7 +155,7 @@ class RobotDialogueManager(DialogueKBManager):
                 obj_type = observation["obj_type"]
                 old_obj_id = f"object: {observation['id_of_object']}"
                 self.observed_objects.add(old_obj_id)
-                obj_id = f"{len(self.observed_objects)} {obj_type}"
+                obj_id = f"{obj_type} no. {len(self.observed_objects)}"
                 self.map_to_old_id[obj_id] = old_obj_id
                 obj_colour = observation["obj_colour"]
                 prev_identified = observation["obj_previously_identified"]
@@ -170,7 +166,7 @@ class RobotDialogueManager(DialogueKBManager):
                 object_graph.add_edge(obj_id, "robot", label=obj_relation_to_robot[2])
                 object_graph.add_edge(obj_id, obj_type, label="is")
                 object_graph.add_edge(obj_type, obj_id, label="is")
-                object_graph.add_edge(obj_id, obj_colour, label="has_colour")
+                object_graph.add_edge(obj_id, obj_colour, label="has colour")
                 if prev_identified:
                     object_graph.add_edge(obj_id, str(time), label="reobserved at")
                 else:
@@ -305,11 +301,26 @@ class RobotDialogueManager(DialogueKBManager):
 
         # remove location attributes from graph
         return [
-            object_graph,
+            # compose_all(
+            # [
+            # object_graph,
             dialogue_graph,
-            state_graph,
-            time_graph
+            # state_graph,
+            # time_graph
+        # ])
         ]
+
+    def print_textual_logs(self):
+        data = {
+            'questions': self.logs['questions'][-1],
+            'extracted_triples': self.logs['extracted_triples'][-1],
+            'extracted_text': self.logs['extracted_text'][-1],
+            'extracted_answers': self.logs['extracted_answers'][-1],
+            # 'extracted_context': self.logs['extracted_context'],
+        }
+        print(data)
+        
+
 
 
 if __name__ == '__main__':
@@ -317,17 +328,19 @@ if __name__ == '__main__':
     triples2text = Triples2TextSystem("./dialogsystem/trained_models/t2t/t2ttrained")
     # print(triples2text)
     # print(triples2text(["graph, is used in, China"]))
-    mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqamodel.ckpt")
+    mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
-    mpnn.k = 10
     rdm = RobotDialogueManager(mpnn,convqa,triples2text)
     quit = False
+    # rdm.triples2text = lambda x: x
     while not quit:
         user_input = input("input: ")
         if user_input == "quit":
             quit = True
+        # elif user_input == "disable triples2text":     
         else:
             print(rdm.question_and_response(user_input))
+            rdm.print_textual_logs()
     # rdm.question_and_response("where is the person in relation to the robot")
     # rdm.question_and_response("Who did you talk to?")
     # rdm.question_and_response("and to whom did you bring the object?")
