@@ -7,3 +7,11 @@ The main class is `RobotDialogManager` which is an implementation of the `Dialog
 
 ## Requirements and Setup
 You need to install the EBB Interface package made by Matthew, and additionally obtain/host the database on a mongodb install
+
+As currently written this assumes that the EBB interface repo is downloaded into a folder called ebbhrd_hrd in the same top level folder as where this repo is installed.
+
+## Use
+You can instantiate an instace of the Robot Dialog Manager by instantiating RBD with arguments corresponding to the models of the MPNN, the Conversational Model, and the Triples to Text module.
+You will be prompted to then pick a session number.
+
+From then on you can interface with it like this: answer = rbd.question_and_response(question)

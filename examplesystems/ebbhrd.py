@@ -116,11 +116,11 @@ class RobotDialogueManager(DialogueKBManager):
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
 
 
-    def initialise_kbs(self, session) -> list[DiGraph]:
+    def initialise_kbs(self, session_date) -> list[DiGraph]:
         """
         session_date: <(int,int,int)> (yyyy,mm,dd) 
         """
-        sessions = self.ebb_interface.getSessionNums_date(*session)
+        sessions = self.ebb_interface.getSessionNums_date(*session_date)
         print(f"choose a session from: {sessions}")
         session_num = int(input("session number: "))
         outputs = self.ebb_interface.getCollectionFromEBB(["observations_coll"],[session_num])
@@ -326,8 +326,6 @@ class RobotDialogueManager(DialogueKBManager):
 if __name__ == '__main__':
     convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
     triples2text = Triples2TextSystem("./dialogsystem/trained_models/t2t/t2ttrained")
-    # print(triples2text)
-    # print(triples2text(["graph, is used in, China"]))
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
     rdm = RobotDialogueManager(mpnn,convqa,triples2text)
@@ -349,6 +347,3 @@ if __name__ == '__main__':
     # rdm.question_and_response("what objects did you see on the table?")
     # rdm.question_and_response("what did you do after picking up the plant?")
     rdm.save_logs("logs/")
-    # orientation = [1,0,0]
-    # vector = [1,1,0]
-    # print(rotate_vector(orientation, vector))
