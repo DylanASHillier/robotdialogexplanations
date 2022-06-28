@@ -107,7 +107,7 @@ def _switch_dict(attribute_dict):
     return out_dict
 
 class GraphTransformer(Module):
-    def __init__(self,lm_string="t5-small") -> None:
+    def __init__(self,lm_string="t5-small", auto_encoder_path="dialogsystem/trained_models/autoencoder.ckpt") -> None:
         """
         Class for handling embedding of networkx graph with a language model, transformation to torch_geometric, and query embedding
         Arguments:
@@ -126,8 +126,8 @@ class GraphTransformer(Module):
         super(GraphTransformer,self).__init__()
         lmodel = T5ForConditionalGeneration.from_pretrained(lm_string).encoder
         tokenizer = AutoTokenizer.from_pretrained(lm_string)
-        if path.exists("dialogsystem/trained_models/autoencoder.ckpt"):
-            auto_encoder = LitAutoEncoder.load_from_checkpoint("dialogsystem/trained_models/autoencoder.ckpt")
+        if auto_encoder_path is not None:
+            auto_encoder = LitAutoEncoder.load_from_checkpoint(auto_encoder_path)
         else:
             auto_encoder =None
         self.lm_embedder = LMEmbedder(lmodel,tokenizer, auto_encoder= auto_encoder)

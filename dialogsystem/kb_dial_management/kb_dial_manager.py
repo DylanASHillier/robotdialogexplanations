@@ -23,7 +23,7 @@ class DialogueKBManager():
     To use:
         implement initialise_kbs
     '''
-    def __init__(self,knowledge_base_args,mpnn,convqa,triples2text,top_k=3) -> None:
+    def __init__(self,knowledge_base_args,mpnn,convqa,triples2text,top_k=10) -> None:
         '''
         knowledge_bases: dict of knowledge base arguments used by `initialise_kbs` to create the knowledge bases
         mpnn: module that runs the message passing neural network
@@ -105,12 +105,12 @@ class DialogueKBManager():
     def _update_dialogue_graph(self, triples, question, answer, extracted_text):
         update = DiGraph()
         turn = f"turn: {self.turn_tracker}"
-        for triple in triples:
-            update.add_edge(extracted_text,','.join(triple),label='extracted from')
-            update.add_edge(','.join(triple),turn, label='extracted in')
-        update.add_edge(question,turn,label="asked in")
-        update.add_edge(answer,turn,label="answered in")
-        update.add_edge(extracted_text,turn,label="extracted text in")
+        # for triple in triples:
+        #     update.add_edge(extracted_text,','.join(triple),label='extracted from')
+        #     update.add_edge(','.join(triple),turn, label='extracted in')
+        # update.add_edge(question,turn,label="asked in")
+        # update.add_edge(answer,turn,label="answered in")
+        # update.add_edge(extracted_text,turn,label="extracted text in")
  
         if self.turn_tracker>0:
             update.add_edge(turn,f"turn: {self.turn_tracker-1}",label="previous turn")
