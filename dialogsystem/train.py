@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 #parse arguments for model training.
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--system_type',type=str, default='t2t', help='system being trained, choose from \'t2t\',\'gnn\'')
+    parser.add_argument('--system_type',type=str, default='t2t', help='system being trained, choose from \'t2t\',\'gnn\',\'autoencoder\'')
     parser.add_argument('--base_model', type=str, default='t5-small', help='pretrained transformers model to be used')
     parser.add_argument('--num_epoch', type=int, default=5, help='number of maximum epochs')
     parser.add_argument('--batch_size', type=int, default=1, help='batchsize')
