@@ -13,3 +13,7 @@ datasets
 neptune-pytorch-lightning
 urllib3
 pymongo
+sentencepiece
+dash
+dash_cytoscape
+networkx
