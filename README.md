@@ -16,6 +16,7 @@ In the first step we must pair up knowledge graphs with the questions and answer
 You will firstly need to set up the conceptnet knowledge graph which is used as the baseline graph
 This can be done using the script setupconceptnet.py in dialogsystem.
 The next step is to run qtext_data_prep.py
+-- Note that I only did this for on the order of 1000 samples before terminating the script
 #### GQA dataset
 Just run scene_graph_data_prep.py
 ### Embedding graphs with questions
@@ -27,6 +28,8 @@ Use the train.py script with setting --system_type=gnn
 ### Language Models:
 I just utilised fairly standard scripts that use the hugging face library. Text generation is definitely an issue here -- I didn't have time to fiddle with the parameters much at all
 -- in particular use the conv_qa_pipeline and triples_to_text_pipeline for doing this training
+## Evaluation and Visualisation
+There are a number of scripts within the dialogystem module that can be used for creating evaluations and visualisations as seen in the report -- see the package for more detail
 ## Example Systems:
 ### Robot doing pickup tasks
 run `examplesystems/ebbhrd.py`
@@ -34,6 +37,10 @@ run `examplesystems/ebbhrd.py`
 ## Next Steps:
 1. I recommend trying out different language models. The recent release of OPT for example would be a nice thing to try for the triple-to-text generation --> simply include an example of a successful triple text translation in the prompt and it should be able to translate triples in a zero shot setting.
 2. Try to keep track of models better than I did! I've got a bunch of .ckpt files to load in graph models
+3. Deal with 1-place predicates
+4. Deal with empty graphs properly
+5. Temporal Component (mpnn-lstm)
+6. Change triple candidates to be top p
 ## Miscellaneous
 ### AWS Tips:
 1. I had a lot of issues with installs on AWS instances due to the varying GPUs, CUDA levels etc. In particular you may have problems with installing the torch geometric packages which seem particularly problematic.
