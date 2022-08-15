@@ -17,3 +17,5 @@ sentencepiece
 dash
 dash_cytoscape
 networkx
+nltk
+matplotlib
