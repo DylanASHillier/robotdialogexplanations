@@ -164,6 +164,7 @@ class DialogueKBManager():
 
     def _run_mpnn(self,data):
         output = self.mpnn(data.x, data.edge_index)
+        print(output)
         output=topk(output, min(self.top_k, output.size(0)))[1]
         triples = [data.edge_label[idx] for idx in output]
         return triples
