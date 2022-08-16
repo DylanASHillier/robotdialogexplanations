@@ -283,12 +283,6 @@ class RobotDialogueManager(DialogueKBManager):
             # sort times and extract relations
             times.sort()
 
-            ## Let times be a list of tuples [(time,node_label)]
-            for i,label_i in times:
-                for j, label_j in times:
-                    if i < j:
-                        time_graph.add_edge(label_i, label_j, label="earlier")
-                        time_graph.add_edge(label_j, label_i, label="later")
 
             for i in range(len(times)-1):
                 time = times[i]
