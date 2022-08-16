@@ -1,5 +1,6 @@
 # robotdialogexplanations
-System for generating explanations for the actions of robotic systems
+System for generating explanations for the actions of robotic systems.
+The rosplan-som branch is Catherine Ning's summer internship work where we try to integrate the question-answering system with the ROSPlan-TIAGo setup. See https://github.com/cognitive-robots/rosplan-som for details.
 
 ## Installation
 Just run pip install -r requirements.txt -- you probably want to do the torch install first though to get the right package for your graphics card setup if you have one.
