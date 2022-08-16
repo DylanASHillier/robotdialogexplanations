@@ -1,5 +1,5 @@
 from matplotlib import pyplot as plt
-from networkx import DiGraph, get_edge_attributes, read_gpickle, write_gpickle, draw
+from networkx import MultiDiGraph, get_edge_attributes, read_gpickle, write_gpickle, draw
 import json
 import sys
 from os.path import dirname
@@ -34,7 +34,7 @@ class DialogueKBManager():
         self.convqa = convqa
         self.mpnn = mpnn
         self.triples2text = triples2text
-        self.dialogue_graph = DiGraph()
+        self.dialogue_graph = MultiDiGraph()
         self.dialogue_context = ""
         self.candidategenerator = CandidateGenerator(3,0.3)
         self.graph_constructor = GraphConstructor()
@@ -57,12 +57,12 @@ class DialogueKBManager():
         self.turn_tracker = 0
 
     def _reset(self):
-        self.dialogue_graph = DiGraph()
+        self.dialogue_graph = MultiDiGraph()
         self.dialogue_context = ""
         self.entity_queue = []
         self.turn_tracker = 0
 
-    def initialise_kbs(self, **knowledge_base_args) -> list[DiGraph]:
+    def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
         '''
         sets up self.kbs
         '''
@@ -100,10 +100,10 @@ class DialogueKBManager():
 
 
     def _pre_process_graph(self, graph):
-        return self.graph_transformer.update(DiGraph(),graph)
+        return self.graph_transformer.update(MultiDiGraph(),graph)
 
     def _update_dialogue_graph(self, triples, question, answer, extracted_text):
-        update = DiGraph()
+        update = MultiDiGraph()
         turn = f"turn: {self.turn_tracker}"
         # for triple in triples:
         #     update.add_edge(extracted_text,','.join(triple),label='extracted from')
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     from random import sample
     graph = read_gpickle("datasets/KGs/conceptnet.json")
     random_nodes = sample(list(graph.nodes),10000)
-    kb_manager.kbs=[kb_manager._pre_process_graph(graph.subgraph(random_nodes))]
+    kb_manager.kbs=[kb_manager._pre_process_graph(MultiDiGraph(graph.subgraph(random_nodes)))]
     # kb_manager.dialogue_graph.add_edge("arachnid","banana",label="next to")
     # kb_manager.dialogue_graph.add_edge("banana","fridge",label="goes in")
     # kb_manager.dialogue_graph.add_edge("fridge","electricity",label="powered by")
@@ -224,7 +224,10 @@ if __name__ == "__main__":
         ("banana","is a","fruit"),
         ("spider","is a","arachnid"),
         ("spider","eats","banana"),
-        ("eagles","eat","electricity")
+        ("spider","eats","arachnid"),
+        ("eagles","eat","electricity"),
+        ("spider","powered by","arachnid"),
+        ("spider","goes in","arachnid")
         ]
     kb_manager._update_dialogue_graph(triples,"spider bananas", "i don't understand", "arachnid next to banana")
     print(kb_manager.question_and_response("where is the banana?"))

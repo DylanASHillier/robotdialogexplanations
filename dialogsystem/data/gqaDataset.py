@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 import json
-from networkx import DiGraph
+from networkx import MultiDiGraph
 
 class gqa(Dataset):
     def __init__(self, split):
@@ -19,7 +19,7 @@ class gqa(Dataset):
         '''
         Converts a graph to a networkx graph
         '''
-        nx_graph = DiGraph()
+        nx_graph = MultiDiGraph()
         for node, attr in graph["objects"].items():
             nx_graph.add_edge(node, attr["name"], label = 'is')
             nx_graph.add_edge(attr["name"], node, label = 'is')

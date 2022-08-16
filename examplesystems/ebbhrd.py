@@ -1,6 +1,6 @@
 import sys
 from os.path import dirname
-from networkx import DiGraph
+from networkx import MultiDiGraph
 sys.path.append(dirname("./dialogsystem"))
 from dialogsystem.models.convqa import ConvQASystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
@@ -116,7 +116,7 @@ class RobotDialogueManager(DialogueKBManager):
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
 
 
-    def initialise_kbs(self, session_date) -> list[DiGraph]:
+    def initialise_kbs(self, session_date) -> list[MultiDiGraph]:
         """
         session_date: <(int,int,int)> (yyyy,mm,dd) 
         """
@@ -126,10 +126,10 @@ class RobotDialogueManager(DialogueKBManager):
         outputs = self.ebb_interface.getCollectionFromEBB(["observations_coll"],[session_num])
         # print(output)
         statement_array =[]
-        object_graph = DiGraph()
-        dialogue_graph = DiGraph()
-        state_graph = DiGraph()
-        time_graph = DiGraph()
+        object_graph = MultiDiGraph()
+        dialogue_graph = MultiDiGraph()
+        state_graph = MultiDiGraph()
+        time_graph = MultiDiGraph()
         times = []
 
         for output in outputs:
@@ -283,6 +283,13 @@ class RobotDialogueManager(DialogueKBManager):
             # sort times and extract relations
             times.sort()
 
+            ## Let times be a list of tuples [(time,node_label)]
+            for i,label_i in times:
+                for j, label_j in times:
+                    if i < j:
+                        time_graph.add_edge(label_i, label_j, label="earlier")
+                        time_graph.add_edge(label_j, label_i, label="later")
+
             for i in range(len(times)-1):
                 time = times[i]
                 windows = [2^i for i in range(1,10)]
@@ -338,7 +345,7 @@ if __name__ == '__main__':
         # elif user_input == "disable triples2text":     
         else:
             print(rdm.question_and_response(user_input))
-            rdm.print_textual_logs()
+            rdm.save_logs()
     # rdm.question_and_response("where is the person in relation to the robot")
     # rdm.question_and_response("Who did you talk to?")
     # rdm.question_and_response("and to whom did you bring the object?")
