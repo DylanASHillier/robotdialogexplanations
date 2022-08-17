@@ -2,14 +2,16 @@ from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear, MSELoss
 from torch.optim import Adam
-from torch import cat, tanh, mean, no_grad, tensor, zeros
-from networkx import compose, ego_graph, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
+from torch import cat, tanh, mean, no_grad, tensor, zeros, LongTensor
+from networkx import compose, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
 from torch_geometric.utils import from_networkx, remove_self_loops
 from torch_geometric.transforms import LineGraph
+from torch_geometric.data import Data
 from transformers import T5ForConditionalGeneration, AutoTokenizer
 from pytorch_lightning import LightningModule
 from tqdm import tqdm
-from os import path
+from typing import Optional, Union, List
+from collections import defaultdict
 
 class LitAutoEncoder(LightningModule):
     def __init__(self, init_dim=512, out_dim=25, lr=1e-3):
@@ -176,9 +178,9 @@ class GraphTransformer(Module):
             relevance_label: boolean, whether to add relevance labels to the graph
         '''
         if relevance_label:
-            data = from_networkx(nxgraph,group_edge_attrs=['embedding', 'relevance_label'])
+            data = _from_multigraph_networkx(nxgraph,group_edge_attrs=['embedding', 'relevance_label'])
         else:
-            data = from_networkx(nxgraph,group_edge_attrs=['embedding'])
+            data = _from_multigraph_networkx(nxgraph,group_edge_attrs=['embedding'])
         if not is_directed(nxgraph):
             data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
         data = LineGraph()(data)
@@ -223,9 +225,96 @@ class GraphTransformer(Module):
         graph_data.x = cat([graph_data.x,query_embedding.expand((graph_data.x.size(0),-1))], dim=1) ## concats on query embedding
         return graph_data
 
+def _from_multigraph_networkx(G, group_node_attrs: Optional[Union[List[str], all]] = None,
+                  group_edge_attrs: Optional[Union[List[str], all]] = None):
+    r"""Converts a :obj:`networkx.Graph` or :obj:`networkx.DiGraph` to a
+    :class:`torch_geometric.data.Data` instance.
+
+    modified version of the from_networkx function in torch_geometric.utils.convert designed to work with multigraphs
+
+    Args:
+        G (networkx.Graph or networkx.DiGraph): A networkx graph.
+        group_node_attrs (List[str] or all, optional): The node attributes to
+            be concatenated and added to :obj:`data.x`. (default: :obj:`None`)
+        group_edge_attrs (List[str] or all, optional): The edge attributes to
+            be concatenated and added to :obj:`data.edge_attr`.
+            (default: :obj:`None`)
+
+    .. note::
+
+        All :attr:`group_node_attrs` and :attr:`group_edge_attrs` values must
+        be numeric.
+    """
+    import networkx as nx
+
+    G = nx.convert_node_labels_to_integers(G)
+    G = G.to_directed() if not nx.is_directed(G) else G
+    edge_index = LongTensor(list(G.edges)).t().contiguous()
+
+    data = defaultdict(list)
+
+    if G.number_of_nodes() > 0:
+        node_attrs = list(next(iter(G.nodes(data=True)))[-1].keys())
+    else:
+        node_attrs = {}
+
+    if G.number_of_edges() > 0:
+        edge_attrs = list(next(iter(G.edges(data=True)))[-1].keys())
+    else:
+        edge_attrs = {}
+
+    for i, (_, feat_dict) in enumerate(G.nodes(data=True)):
+        if set(feat_dict.keys()) != set(node_attrs):
+            raise ValueError('Not all nodes contain the same attributes')
+        for key, value in feat_dict.items():
+            data[str(key)].append(value)
+
+    for i, (_, _, feat_dict) in enumerate(G.edges(data=True)):
+        if set(feat_dict.keys()) != set(edge_attrs):
+            raise ValueError('Not all edges contain the same attributes')
+        for key, value in feat_dict.items():
+            key = f'edge_{key}' if key in node_attrs else key
+            data[str(key)].append(value)
+
+    for key, value in data.items():
+        try:
+            data[key] = tensor(value)
+        except ValueError:
+            pass
+    data['edge_index'] = edge_index.view(edge_index.shape[0], -1)
+    data = Data.from_dict(data)
+
+    if group_node_attrs is all:
+        group_node_attrs = list(node_attrs)
+    if group_node_attrs is not None:
+        xs = []
+        for key in group_node_attrs:
+            x = data[key]
+            x = x.view(-1, 1) if x.dim() <= 1 else x
+            xs.append(x)
+            del data[key]
+        data.x = cat(xs, dim=-1)
+
+    if group_edge_attrs is all:
+        group_edge_attrs = list(edge_attrs)
+    if group_edge_attrs is not None:
+        xs = []
+        for key in group_edge_attrs:
+            key = f'edge_{key}' if key in node_attrs else key
+            x = data[key]
+            x = x.view(-1, 1) if x.dim() <= 1 else x
+            xs.append(x)
+            del data[key]
+        data.edge_attr = cat(xs, dim=-1)
+
+    if data.x is None and data.pos is None:
+        data.num_nodes = G.number_of_nodes()
+
+    return data
+
 if __name__ == '__main__':
-    from networkx import DiGraph, Graph
-    nxgraph = DiGraph()
+    from networkx import MultiDiGraph, Graph
+    nxgraph = MultiDiGraph()
     nxgraph.add_nodes_from(["hi","hello","welcome","greetings","don't","ghosted"])
     nxgraph.add_edge("hi","hello",label="is_same",relevance_label=4)
     nxgraph.add_edge("welcome","hi",label="is_same",relevance_label=2)
@@ -237,7 +326,7 @@ if __name__ == '__main__':
     nxgraph.add_edge("greetings","greetings",label="I need osmebody", relevance_label=2)
     gt = GraphTransformer(lm_string="t5-small")
     nxgraph = gt._update_attributes(nxgraph,gt.embed(nxgraph))
-    newgraph = DiGraph()
+    newgraph = MultiDiGraph()
     newgraph.add_nodes_from(["hi","salut"])
     newgraph.add_edge("hi","salut",label="is_same")
     newgraph = gt.update(nxgraph,newgraph)

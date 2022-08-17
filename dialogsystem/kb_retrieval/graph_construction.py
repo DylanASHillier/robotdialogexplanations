@@ -1,6 +1,6 @@
 from multiprocessing import Pool
 from networkx import subgraph, single_source_shortest_path_length, compose, is_directed
-from networkx import DiGraph, Graph, is_directed
+from networkx import MultiDiGraph, Graph, is_directed
 
 def extract_nodes(tup):
     nxg,ec,k = tup
@@ -9,10 +9,10 @@ def extract_nodes(tup):
 
 class GraphConstructor():
     def __init__(self) -> None:
-        self.graph = DiGraph()
+        self.graph = MultiDiGraph()
 
     def reset(self):
-        self.graph = DiGraph()
+        self.graph = MultiDiGraph()
 
     def input_nx_graph_with_trimming(self,nxgraph,entity_candidates,k):
         '''
