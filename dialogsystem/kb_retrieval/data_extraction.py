@@ -1,5 +1,5 @@
 from rdflib import Graph, Literal
-from networkx import DiGraph as nxDiGraph
+from networkx import MultiDiGraph as nxMultiDiGraph
 from networkx import Graph as nxUdGraph
 import rdflib
 from requests import get, post
@@ -100,7 +100,7 @@ class DataExtractor():
             g = Graph()
         else:
             if directed:
-                g = nxDiGraph()
+                g = nxMultiDiGraph()
             else:
                 g = nxUdGraph()
         with open(csv, 'r', encoding="utf8") as f:
