@@ -1,7 +1,7 @@
 import sys
 from os.path import dirname
 from xml.etree.ElementPath import prepare_predicate
-from networkx import DiGraph
+from networkx import MultiDiGraph
 sys.path.append(dirname("./dialogsystem"))
 from dialogsystem.models.convqa import ConvQASystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
@@ -23,28 +23,32 @@ class RosplanDialogueManager(DialogueKBManager):
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
     
-    def initialise_kbs(self, **knowledge_base_args) -> list[DiGraph]:
+    def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
         query = {"SESSION_NUM":int(input("Which session : "))}
 
+        #knowledgeitem graph (state of the world)
         collection = self.db["knowledgeitems"]
-
         queryresults = collection.find(query)
-        rosplan_knowledgeitems_graph = DiGraph()
+        rosplan_knowledgeitems_graph = MultiDiGraph()
         for res in queryresults:
             if res["knowledgeItem"]["knowledge_type"]==1:
                 subject = res["knowledgeItem"]["values"][0]["value"]
                 
                 object = res["knowledgeItem"]["values"][-1]["value"]
                 label = self.predicate_mapping(res["knowledgeItem"]["attribute_name"])
-                rosplan_knowledgeitems_graph.add_edge(subject,object,
-                label = label)
-        
+                if res["update_type"] == "add_knowledge":
+                    rosplan_knowledgeitems_graph.add_edge(subject,object,
+                    label = label)
+                elif res["update_type"] == "remove_knowledge":
+                    rosplan_knowledgeitems_graph.remove_edge(subject,object)
+                
+        # graph for pick and place results with failure message
         task_result_collection = self.db["pickplaceresults"]
         task_query_results = task_result_collection.find(query)
-        task_result_graph = DiGraph()
+        task_result_graph = MultiDiGraph()
         for res in task_query_results:
             
-            subject = "Action"+res["action_type"]
+            subject = "Action "+res["action_type"]
             label = "has"
             
             object = res["result"]
@@ -54,7 +58,7 @@ class RosplanDialogueManager(DialogueKBManager):
         # success and failure count messages
         successcount_collection = self.db["successcounts"]
         successcount_results = successcount_collection.find(query)
-        successcount_graph = DiGraph()
+        successcount_graph = MultiDiGraph()
         for res in successcount_results:
             
             subject = res["count_name"]
@@ -63,22 +67,41 @@ class RosplanDialogueManager(DialogueKBManager):
             object = str(res["count"])
             successcount_graph.add_edge(subject,object, label = label)
 
-        return [rosplan_knowledgeitems_graph, task_result_graph, successcount_graph]
+        # get the messages in the database collection "plan" which describe the actions to be taken
+        plan_collection = self.db["plan"]
+        plan_results =plan_collection.find(query)
+        plan_graph = MultiDiGraph()
+        node_before = "start of plan"
+        for res in plan_results:
+            split_action = res["plan_action"].split(":")
+            subject = split_action[1]
+            label = "is part of"
+            object = "Plan 1" # TODO change the number of plan so it is updated when new plan is generated
+            plan_graph.add_edge(subject,object, label = label)
+            if (node_before == "start of plan"):
+                plan_graph.add_edge(node_before, subject, label = "is")
+            else:
+                plan_graph.add_edge(node_before, subject, label = "before")
+                plan_graph.add_edge(subject, node_before, label = "after")
+            node_before = subject
+        plan_graph.add_edge(subject, "end of plan", label = "is")
+
+        return [rosplan_knowledgeitems_graph, task_result_graph, successcount_graph, plan_graph]
     
 
     def predicate_mapping(self, predicate):
         if predicate == "robot_at_wp":
-            return "is at waypoint"
+            return "is at"
         if predicate == "box_at_wp":
-            return "is on table at waypoint"
+            return "is on table at"
         if predicate == "box_on_robot":
-            return "is holding"
+            return "is held by"
         if predicate == "robot_does_not_have_box":
             return "is not holding a box"
         if predicate == "wp_visited":
-            return "Robot has visited waypoint"
+            return "Robot has visited"
         if predicate == "robot_done_pick_place":
-            return "is done with pick or place"
+            return "is done with picking or placing"
 
     
     def print_textual_logs(self):

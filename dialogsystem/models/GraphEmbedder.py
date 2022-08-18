@@ -281,7 +281,8 @@ def _from_multigraph_networkx(G, group_node_attrs: Optional[Union[List[str], all
             data[key] = tensor(value)
         except ValueError:
             pass
-    data['edge_index'] = edge_index.view(edge_index.shape[0], -1)
+    data['edge_index'] = edge_index.view(3, -1)  # SHOULD BE edge_index.shape[0] instead of 3
+ 
     data = Data.from_dict(data)
 
     if group_node_attrs is all:
