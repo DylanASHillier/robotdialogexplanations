@@ -41,7 +41,7 @@ class RosplanDialogueManager(DialogueKBManager):
         print("State -1 Initial State")
         action_number = 0
         for res in plan_results:
-            subject = res["plan_action"]
+            subject = self.naturalise_plan_action(res["plan_action"])
             print("Action "+str(action_number)+ " "+ subject)
 
             # **************** plan_graph generation **********************************
@@ -105,6 +105,19 @@ class RosplanDialogueManager(DialogueKBManager):
 
         return [rosplan_knowledgeitems_graph, task_result_graph, successcount_graph, plan_graph]
     
+    def naturalise_plan_action(self,pddl_string):
+        # input string is of form : "0.000: (move tiago init wp1)  [2.571] "
+        pddl_string = pddl_string.split(": ") 
+        action_duration = pddl_string[1].split("  ")
+        action = action_duration[0][1:-1].split()
+        duration = action_duration[1][1:-1]
+        if action[0] == "move":
+            return "Tiago moves from "+action[2]+" to "+action[3]+" in "+duration+ " s"
+        elif action[0] == "grasp":
+            return "Tiago picks "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
+        elif action[0] == "place":
+            return "Tiago places from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
+        return "None"
 
     def predicate_mapping(self, predicate):
         if predicate == "robot_at_wp":
