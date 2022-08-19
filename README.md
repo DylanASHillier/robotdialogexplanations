@@ -2,7 +2,7 @@
 System for generating explanations for the actions of robotic systems.
 The rosplan-som branch is Catherine Ning's summer internship work where we try to integrate the question-answering system with the ROSPlan-TIAGo setup. See https://github.com/cognitive-robots/rosplan-som for details. 
 
-##Assumptions
+## Assumptions
 The timestamps of the knowledge items and other knowledge graph nodes have not been explicitly sorted, since we assume that the information is logged in chronological order already (using the rosplan-som logging logic from Catherine, for example see RPActionInterface.cpp in rosplan_planning_system package).
 
 ## Installation
