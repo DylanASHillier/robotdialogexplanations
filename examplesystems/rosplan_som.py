@@ -1,6 +1,5 @@
 import sys
 from os.path import dirname
-from xml.etree.ElementPath import prepare_predicate
 from networkx import MultiDiGraph
 sys.path.append(dirname("./dialogsystem"))
 from dialogsystem.models.convqa import ConvQASystem
@@ -13,97 +12,49 @@ import math
 import numpy
 from networkx import compose_all
 import pymongo
+import re
 
 # MetaDialogueManager: switches between RPPlanDM and RPADM acc. to the question, contains list of plan_graphs for different plans, and actions and associated action_graphs for each plan
 # RPPlanDialogueManager plan dialogue: given problem and domain, we talk about the associated plan
 # RPActionDialogueManager action dialogue (related to state of the world after an action)
 
-class RosplanDialogueManager(DialogueKBManager):
-    def __init__(self, mpnn, convqa, triples2text,db_port = 27017, knowledge_base_args={'session':(2022,4,26)}) -> None:
+
+
+class RosplanPlanActionDialogueManager:
+    def __init__(self, mpnn, convqa, triples2text, knowledge_base_args={'session':(2022,4,26)}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
         self.db = client["database_test"]
+        self.action_number = None
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
-    
-    def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
 
-        ####  First question prompt: (RPPlanDialogueManager and ActionDM) >> which problem/plan?
-        session_num = int(input("Which session : "))
-
-        # get the messages in the database collection "plan" which describe the actions to be taken
-        plan_collection = self.db["plan"]
-        plan_results =plan_collection.find({"SESSION_NUM":session_num})
-        plan_graph = MultiDiGraph()
-        node_before = "start of plan"
-
-        # print the plan for second prompt
-        print("Here is the plan: \n")
-        print("State -1 Initial State")
-        action_number = 0
-        for res in plan_results:
-            subject = self.naturalise_plan_action(res["plan_action"])
-            print("Action "+str(action_number)+ " "+ subject)
-
-            # **************** plan_graph generation **********************************
-            label = "is part of"
-            object = "Plan 1" # TODO change the number of plan so it is updated when new plan is generated
-            plan_graph.add_edge(subject,object, label = label)
-            if (node_before == "start of plan"):
-                plan_graph.add_edge(node_before, subject, label = "is")
-            else:
-                plan_graph.add_edge(node_before, subject, label = "before")
-                plan_graph.add_edge(subject, node_before, label = "after")
-            node_before = subject
-
-            action_number += 1
-        plan_graph.add_edge(subject, "end of plan", label = "is")
-
-        ####  Second question prompt: (RPActionDialogueManager)
-        action_query = {"$lte":int(input("Enter number of action you would like to know about : "))}  #$lte: means less than or equal, so we generate a knowledge graph using all the items UP UNTIL that action (included)
-
-        #knowledgeitem graph (state of the world)
+    def initialise_kbs(self, session, **knowledge_base_args) -> list[MultiDiGraph]:
+        ## proceses knowledgeitem graph (state of the world)
         collection = self.db["knowledgeitems"]
-        queryresults = collection.find({"SESSION_NUM":session_num,"action_id":action_query})
-        rosplan_knowledgeitems_graph = MultiDiGraph()
+        queryresults = collection.find({"SESSION_NUM": session})
+        graph_list = []
+        current_graph = MultiDiGraph()
+        action_id = 0
+
+        ## assumes that the knowledgeitems are in order of action_id
         for res in queryresults:
+            if res["action_id"] > action_id:
+                graph_list.append(current_graph)
+                current_graph = current_graph.copy()
+                action_id +=1
             if res["knowledgeItem"]["knowledge_type"]==1:
                 subject = res["knowledgeItem"]["values"][0]["value"]
                 
                 object = res["knowledgeItem"]["values"][-1]["value"]
                 label = self.predicate_mapping(res["knowledgeItem"]["attribute_name"])
                 if res["update_type"] == "add_knowledge":
-                    rosplan_knowledgeitems_graph.add_edge(subject,object,
+                    current_graph.add_edge(subject,object,
                     label = label)
                 elif res["update_type"] == "remove_knowledge":
-                    rosplan_knowledgeitems_graph.remove_edge(subject,object)
-                
-        # graph for pick and place results with failure message
-        task_result_collection = self.db["pickplaceresults"]
-        task_query_results = task_result_collection.find({"SESSION_NUM":session_num})
-        task_result_graph = MultiDiGraph()
-        for res in task_query_results:
-            
-            subject = "Action "+res["action_type"]
-            label = "has"
-            
-            object = res["result"]
-            task_result_graph.add_edge(subject,object, label = label)
+                    current_graph.remove_edge(subject,object)
+        graph_list.append(current_graph) # add the last graph
+        return graph_list
 
-
-        # success and failure count messages
-        successcount_collection = self.db["successcounts"]
-        successcount_results = successcount_collection.find({"SESSION_NUM":session_num})
-        successcount_graph = MultiDiGraph()
-        for res in successcount_results:
-            
-            subject = res["count_name"]
-            label = "is"
-            
-            object = str(res["count"])
-            successcount_graph.add_edge(subject,object, label = label)
-
-
-        return [rosplan_knowledgeitems_graph, task_result_graph, successcount_graph, plan_graph]
     
     def naturalise_plan_action(self,pddl_string):
         # input string is of form : "0.000: (move tiago init wp1)  [2.571] "
@@ -132,6 +83,107 @@ class RosplanDialogueManager(DialogueKBManager):
             return "Robot has visited"
         if predicate == "robot_done_pick_place":
             return "is done with picking or placing"
+        
+
+class RosplanDialogueManager(DialogueKBManager):
+    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
+        client = pymongo.MongoClient("mongodb://localhost:62345/")
+        self.db = client["database_test"]
+        self.session_num = session_num
+        self.ActionDialogueManager = RosplanPlanActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
+        self.action_kbs = self.ActionDialogueManager.kbs
+        super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
+
+    def _process_plan_db(self) -> MultiDiGraph:
+        # get the messages in the database collection "plan" which describe the actions to be taken
+        plan_collection = self.db["plan"]
+        plan_results =plan_collection.find({"SESSION_NUM":self.session_num})
+        plan_graph = MultiDiGraph()
+        node_before = "start of plan"
+
+        # print the plan for second prompt
+        print("Here is the plan: \n")
+        print("State -1 Initial State")
+        action_number = 0
+        for res in plan_results:
+            subject = self.naturalise_plan_action(res["plan_action"])
+            print("Action "+str(action_number)+ " "+ subject)
+
+            # **************** plan_graph generation **********************************
+            label = "is part of"
+            object = "Plan 1" # TODO change the number of plan so it is updated when new plan is generated
+            plan_graph.add_edge(subject,object, label = label)
+            if (node_before == "start of plan"):
+                plan_graph.add_edge(node_before, subject, label = "is")
+            else:
+                plan_graph.add_edge(node_before, subject, label = "before")
+                plan_graph.add_edge(subject, node_before, label = "after")
+            node_before = subject
+
+            action_number += 1
+        plan_graph.add_edge(subject, "end of plan", label = "is")
+        return plan_graph
+
+    def _check_for_action_question(self, user_input) -> bool:
+        # check if the user input is a question about an action and set the action number
+        match = re.search(r'tell me about action (\d+)', user_input)
+        if match:
+            self.action_number = int(match.group(1))
+            self.ActionDialogueManager.kbs = self.action_kbs[self.action_number]
+            return True
+        return False
+
+
+
+    def _process_pick_and_place_db(self) -> MultiDiGraph:
+        # graph for pick and place results with failure message
+        task_result_collection = self.db["pickplaceresults"]
+        task_query_results = task_result_collection.find({"SESSION_NUM":self.session_num})
+        task_result_graph = MultiDiGraph()
+        for res in task_query_results:
+            
+            subject = "Action "+res["action_type"]
+            label = "has"
+            
+            object = res["result"]
+            task_result_graph.add_edge(subject,object, label = label)
+        return task_result_graph
+
+    def _process_success_count_graph(self) -> MultiDiGraph:
+         # success and failure count messages
+        successcount_collection = self.db["successcounts"]
+        successcount_results = successcount_collection.find({"SESSION_NUM":self.session_num})
+        successcount_graph = MultiDiGraph()
+        for res in successcount_results:
+            
+            subject = res["count_name"]
+            label = "is"
+            
+            object = str(res["count"])
+            successcount_graph.add_edge(subject,object, label = label)
+        return successcount_graph
+    
+    def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
+
+        ####  First question prompt: (RPPlanDialogueManager and ActionDM) >> which problem/plan?
+        plan_graph = self._process_plan_db()
+        ####  Second question prompt: (RPActionDialogueManager)
+        action_query = {"$lte":int(input("Enter number of action you would like to know about : "))}  #$lte: means less than or equal, so we generate a knowledge graph using all the items UP UNTIL that action (included)
+
+        task_result_graph = self._process_pick_and_place_db()
+        successcount_graph = self._process_success_count_graph()
+
+
+        return [task_result_graph, successcount_graph, plan_graph]
+    
+    def question_and_response(self, question: str):
+        ### Handles mode switching???
+        if self.action_number is not None:
+            self.ActionDialogueManager.question_and_response(question,)
+        elif self._check_for_action_question(question):
+            return "Ok, I will tell you about action "+str(self.action_number)
+        else:
+            return super().question_and_response(question)
 
     
     def print_textual_logs(self):
