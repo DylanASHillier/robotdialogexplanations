@@ -35,8 +35,8 @@ class LightningKGQueryMPNN(LightningModule):
             x = layer(x,edge_index)
             x = self.activations[i](x)
         x = self.final_layer(x)
-        x = sigmoid(x).squeeze()
-        if self.avg_pooling:
+        x = sigmoid(x).view(-1)
+        if self.avg_pooling and x.numel() > 0: # checks that x is not empty
             pool_graph = Data(x=x,edge_index=edge_index)
             output = avg_pool_neighbor_x(pool_graph).x
         else:
