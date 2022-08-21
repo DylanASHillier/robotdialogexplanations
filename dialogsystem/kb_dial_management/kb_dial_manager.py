@@ -133,7 +133,7 @@ class DialogueKBManager():
         self.logs['extracted_text'].append(text)
         answer = self._run_convqa(question, text)
         self.logs['extracted_answers'].append(answer)
-        self._update_dialogue_graph(triples, question, answer, text)
+        # self._update_dialogue_graph(triples, question, answer, text)
         self._update_dialogue_context(question, answer)
         self.turn_tracker += 1
         return answer
@@ -206,17 +206,13 @@ if __name__ == "__main__":
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.k = 3
     kb_manager = DialogueKBManager({},mpnn,convqa,triples2text)
-    from random import sample
-    graph = read_gpickle("datasets/KGs/conceptnet.json")
-    random_nodes = sample(list(graph.nodes),10000)
-    kb_manager.kbs=[kb_manager._pre_process_graph(MultiDiGraph(graph.subgraph(random_nodes)))]
-    # kb_manager.dialogue_graph.add_edge("arachnid","banana",label="next to")
-    # kb_manager.dialogue_graph.add_edge("banana","fridge",label="goes in")
-    # kb_manager.dialogue_graph.add_edge("fridge","electricity",label="powered by")
-    # kb_manager.dialogue_graph.add_edge("banana","fruit",label="is a")
-    # kb_manager.dialogue_graph.add_edge("spider","arachnid",label="is a")
-    # kb_manager.dialogue_graph.add_edge("spider","banana",label="eats")
-    # kb_manager.dialogue_graph.add_edge("eagles","electricity",label="eat")
+    empty_graph = MultiDiGraph()
+    tiny_graph = MultiDiGraph()
+    tiny_graph.add_node("banana")  
+    small_graph = MultiDiGraph()
+    small_graph.add_edge("banana","fruit",label="is a")
+
+
     triples = [
         ("arachnid","next to","banana"),
         ("banana","goes in","fridge"),
@@ -229,8 +225,29 @@ if __name__ == "__main__":
         ("spider","powered by","arachnid"),
         ("spider","goes in","arachnid")
         ]
-    kb_manager._update_dialogue_graph(triples,"spider bananas", "i don't understand", "arachnid next to banana")
+    kb_manager.kbs = [empty_graph]
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
+    kb_manager.kbs = [kb_manager._pre_process_graph(small_graph)]
+    print(kb_manager.question_and_response("where is the banana?"))
+    print(kb_manager.question_and_response("what about the spider?"))
+
+    kb_manager.kbs = [kb_manager._pre_process_graph(tiny_graph)]
+    print(kb_manager.question_and_response("where is the banana?"))
+    print(kb_manager.question_and_response("what about the spider?"))
+
+    from random import sample
+    graph = read_gpickle("datasets/KGs/conceptnet.json")
+    random_nodes = sample(list(graph.nodes),10000)
+    large_graph = graph.subgraph(random_nodes)
+
+    kb_manager.kbs = [kb_manager._pre_process_graph(large_graph)]
+    print(kb_manager.question_and_response("where is the banana?"))
+    print(kb_manager.question_and_response("what about the spider?"))
+
+    # tests multiple graphs
+    kb_manager.kbs = [kb_manager._pre_process_graph(large_graph),kb_manager._pre_process_graph(small_graph)]
+    print(kb_manager.question_and_response("where is the banana?"))
+    print(kb_manager.question_and_response("what about the spider?"))
 
