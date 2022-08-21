@@ -339,7 +339,7 @@ if __name__ == '__main__':
         # elif user_input == "disable triples2text":     
         else:
             print(rdm.question_and_response(user_input))
-            rdm.save_logs()
+            rdm.print_textual_logs()
     # rdm.question_and_response("where is the person in relation to the robot")
     # rdm.question_and_response("Who did you talk to?")
     # rdm.question_and_response("and to whom did you bring the object?")
