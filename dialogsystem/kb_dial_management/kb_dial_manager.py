@@ -1,9 +1,12 @@
+import string
+from typing import Optional
 from matplotlib import pyplot as plt
 from networkx import MultiDiGraph, get_edge_attributes, read_gpickle, write_gpickle, draw
 import json
 import sys
 from os.path import dirname
 from torch import topk
+from torch_geometric.data import Data
 
 sys.path.append(dirname("./dialogsystem"))
 
@@ -157,12 +160,16 @@ class DialogueKBManager():
             all_entities += entities
         return self.graph_constructor.build_graph()
     
-    def _transform_graph(self,graph, question):
+    def _transform_graph(self, graph: Optional[MultiDiGraph], question: string)-> Optional[Data]:
+        if graph.number_of_nodes() == 0 or graph.number_of_edges() == 0:
+            return None
         data = self.graph_transformer.transform(graph, False)
         data = self.graph_transformer.add_query(data, question, relevance_label=False)
         return data
 
-    def _run_mpnn(self,data):
+    def _run_mpnn(self, data: Optional[Data]):
+        if data is None:
+            return []
         output = self.mpnn(data.x, data.edge_index)
         output=topk(output, min(self.top_k, output.size(0)))[1]
         triples = [data.edge_label[idx] for idx in output]
@@ -172,25 +179,41 @@ class DialogueKBManager():
         '''
         given a list of triples, concatenate any that have the same entity
         '''
-        triple_groups = []
-        for triple in triples:
-            coalesced = False
-            for triple_group in triple_groups:
+        def search(triple, coalesced_triples) -> bool:
+            for coalesced_triple in coalesced_triples:
+                for other_triples in coalesced_triple:
+                    if triple[0] in other_triples or triple[2] in other_triples:
+                        coalesced_triple.append(triple)
+                        return True
+            return False
 
-                if triple[0] in triple_group or triple[2] in triple_group:
-                    triple_group.append(triple[0])
-                    triple_group.append(triple[1])
-                    triple_group.append(triple[2])
-                    coalesced=True
-                    break
-            if not coalesced:
-                triple_groups.append([triple[0],triple[1],triple[2]])
-        return [",".join(triple_group) for triple_group in triple_groups]
+        coalesced_triples = []
+        for triple in triples:
+            if search(triple, coalesced_triples):
+                break
+            coalesced_triples.append([triple])
+        return coalesced_triples
+            
+  
+      
+        # triple_groups = []
+        # for triple in triples:
+        #     coalesced = False
+        #     for triple_group in triple_groups:
+
+        #         if triple[0] in triple_group or triple[2] in triple_group:
+        #             triple_group.append(triple)
+        #             coalesced=True
+        #             break
+        #     if not coalesced:
+        #         triple_groups.append([triple[0],triple[1],triple[2]])
+        # return [",".join(triple_group) for triple_group in triple_groups]
 
     def _run_triples2text(self,triples):
-        # print(triples)
-        triples = self._coalesce_triples(triples)
-        # print(f"coalesced triples: {triples}")
+        coalesced_triples = self._coalesce_triples(triples)
+        triples = [";".join([",".join(triple) for triple in coalesced_triple]) for coalesced_triple in coalesced_triples]
+        if len(triples) == 0:
+            return ""
         return '\n'.join(self.triples2text(triples))
 
     def _run_convqa(self,question, background_text):
@@ -226,28 +249,33 @@ if __name__ == "__main__":
         ("spider","goes in","arachnid")
         ]
     kb_manager.kbs = [empty_graph]
+    print("testing empty graph")
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
     kb_manager.kbs = [kb_manager._pre_process_graph(small_graph)]
+    print("testing small graph")
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
     kb_manager.kbs = [kb_manager._pre_process_graph(tiny_graph)]
+    print("testing tiny graph")
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
     from random import sample
-    graph = read_gpickle("datasets/KGs/conceptnet.json")
+    graph = MultiDiGraph(read_gpickle("datasets/KGs/conceptnet.json"))
     random_nodes = sample(list(graph.nodes),10000)
     large_graph = graph.subgraph(random_nodes)
 
     kb_manager.kbs = [kb_manager._pre_process_graph(large_graph)]
+    print("testing large graph")
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
     # tests multiple graphs
     kb_manager.kbs = [kb_manager._pre_process_graph(large_graph),kb_manager._pre_process_graph(small_graph)]
+    print("testing multiple graphs")
     print(kb_manager.question_and_response("where is the banana?"))
     print(kb_manager.question_and_response("what about the spider?"))
 
