@@ -190,7 +190,7 @@ class DialogueKBManager():
         coalesced_triples = []
         for triple in triples:
             if search(triple, coalesced_triples):
-                break
+                continue
             coalesced_triples.append([triple])
         return coalesced_triples
             
@@ -229,6 +229,8 @@ if __name__ == "__main__":
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.k = 3
     kb_manager = DialogueKBManager({},mpnn,convqa,triples2text)
+    print(kb_manager._coalesce_triples([]))
+    print(kb_manager._coalesce_triples([("a","b","c"),("a","b","d"),("e","f","g"),("h","f","g")]))
     empty_graph = MultiDiGraph()
     tiny_graph = MultiDiGraph()
     tiny_graph.add_node("banana")  
