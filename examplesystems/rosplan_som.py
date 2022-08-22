@@ -112,11 +112,11 @@ class RosplanDialogueManager(DialogueKBManager):
         action = action_duration[0][1:-1].split()
         duration = action_duration[1][1:-1]
         if action[0] == "move":
-            return "Tiago moves from "+action[2]+" to "+action[3]+" in "+duration+ " s"
+            return "move from "+action[2]+" to "+action[3]+" in "+duration+ " s"
         elif action[0] == "grasp":
-            return "Tiago picks "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
+            return "pick "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
         elif action[0] == "place":
-            return "Tiago places from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
+            return "place from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
         return "None"
 
     def predicate_mapping(self, predicate):
