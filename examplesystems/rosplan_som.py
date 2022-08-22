@@ -20,29 +20,30 @@ import re
 
 
 
-class RosplanPlanActionDialogueManager:
-    def __init__(self, mpnn, convqa, triples2text, knowledge_base_args={'session':(2022,4,26)}) -> None:
+class RPActionDialogueManager(DialogueKBManager):
+    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
         self.db = client["database_test"]
-        self.action_number = None
+        self.session_num = session_num
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
 
-    def initialise_kbs(self, session, **knowledge_base_args) -> list[MultiDiGraph]:
+    def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
         ## proceses knowledgeitem graph (state of the world)
         collection = self.db["knowledgeitems"]
-        queryresults = collection.find({"SESSION_NUM": session})
+        queryresults = collection.find({"SESSION_NUM": self.session_num})
         graph_list = []
         current_graph = MultiDiGraph()
-        action_id = 0
+        
 
         ## assumes that the knowledgeitems are in order of action_id
+        i = 0 # tracker of action_id to be included in kg
         for res in queryresults:
-            if res["action_id"] > action_id:
+            if res["action_id"] > i:
                 graph_list.append(current_graph)
                 current_graph = current_graph.copy()
-                action_id +=1
-            if res["knowledgeItem"]["knowledge_type"]==1:
+                i +=1
+            if res["knowledgeItem"]["knowledge_type"]==1: # this is of type FACT
                 subject = res["knowledgeItem"]["values"][0]["value"]
                 
                 object = res["knowledgeItem"]["values"][-1]["value"]
@@ -54,21 +55,6 @@ class RosplanPlanActionDialogueManager:
                     current_graph.remove_edge(subject,object)
         graph_list.append(current_graph) # add the last graph
         return graph_list
-
-    
-    def naturalise_plan_action(self,pddl_string):
-        # input string is of form : "0.000: (move tiago init wp1)  [2.571] "
-        pddl_string = pddl_string.split(": ") 
-        action_duration = pddl_string[1].split("  ")
-        action = action_duration[0][1:-1].split()
-        duration = action_duration[1][1:-1]
-        if action[0] == "move":
-            return "Tiago moves from "+action[2]+" to "+action[3]+" in "+duration+ " s"
-        elif action[0] == "grasp":
-            return "Tiago picks "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
-        elif action[0] == "place":
-            return "Tiago places from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
-        return "None"
 
     def predicate_mapping(self, predicate):
         if predicate == "robot_at_wp":
@@ -86,13 +72,17 @@ class RosplanPlanActionDialogueManager:
         
 
 class RosplanDialogueManager(DialogueKBManager):
-    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
+    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
         self.db = client["database_test"]
         self.session_num = session_num
-        self.ActionDialogueManager = RosplanPlanActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
+        self.ActionDialogueManager = RPActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
         self.action_kbs = self.ActionDialogueManager.kbs
+        self.selected_action = None
+
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
+        self.kbs.append(self.action_kbs[-1])
+        print(self.kbs)
 
     def _process_plan_db(self) -> MultiDiGraph:
         # get the messages in the database collection "plan" which describe the actions to be taken
@@ -104,11 +94,11 @@ class RosplanDialogueManager(DialogueKBManager):
         # print the plan for second prompt
         print("Here is the plan: \n")
         print("State -1 Initial State")
-        action_number = 0
+        i = 0
         for res in plan_results:
             subject = self.naturalise_plan_action(res["plan_action"])
-            print("Action "+str(action_number)+ " "+ subject)
-
+            print(f"Action {i} {subject} ")
+            i += 1
             # **************** plan_graph generation **********************************
             label = "is part of"
             object = "Plan 1" # TODO change the number of plan so it is updated when new plan is generated
@@ -120,7 +110,7 @@ class RosplanDialogueManager(DialogueKBManager):
                 plan_graph.add_edge(subject, node_before, label = "after")
             node_before = subject
 
-            action_number += 1
+            
         plan_graph.add_edge(subject, "end of plan", label = "is")
         return plan_graph
 
@@ -128,8 +118,8 @@ class RosplanDialogueManager(DialogueKBManager):
         # check if the user input is a question about an action and set the action number
         match = re.search(r'tell me about action (\d+)', user_input)
         if match:
-            self.action_number = int(match.group(1))
-            self.ActionDialogueManager.kbs = self.action_kbs[self.action_number]
+            self.selected_action = int(match.group(1))
+            self.ActionDialogueManager.kbs = [self.action_kbs[self.selected_action]]
             return True
         return False
 
@@ -142,7 +132,7 @@ class RosplanDialogueManager(DialogueKBManager):
         task_result_graph = MultiDiGraph()
         for res in task_query_results:
             
-            subject = "Action "+res["action_type"]
+            subject = "Action "+str(res["action_id"])
             label = "has"
             
             object = res["result"]
@@ -165,10 +155,10 @@ class RosplanDialogueManager(DialogueKBManager):
     
     def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
 
-        ####  First question prompt: (RPPlanDialogueManager and ActionDM) >> which problem/plan?
         plan_graph = self._process_plan_db()
-        ####  Second question prompt: (RPActionDialogueManager)
-        action_query = {"$lte":int(input("Enter number of action you would like to know about : "))}  #$lte: means less than or equal, so we generate a knowledge graph using all the items UP UNTIL that action (included)
+
+        #next line of code is no longer needed 
+        #action_query = {"$lte":int(input("Enter number of action you would like to know about : "))}  #$lte: means less than or equal, so we generate a knowledge graph using all the items UP UNTIL that action (included)
 
         task_result_graph = self._process_pick_and_place_db()
         successcount_graph = self._process_success_count_graph()
@@ -178,12 +168,26 @@ class RosplanDialogueManager(DialogueKBManager):
     
     def question_and_response(self, question: str):
         ### Handles mode switching???
-        if self.action_number is not None:
+        if self.selected_action is not None:
             self.ActionDialogueManager.question_and_response(question,)
         elif self._check_for_action_question(question):
-            return "Ok, I will tell you about action "+str(self.action_number)
+            return "Ok, I will tell you about action "+str(self.selected_action)
         else:
             return super().question_and_response(question)
+    
+    def naturalise_plan_action(self,pddl_string):
+        # input string is of form : "0.000: (move tiago init wp1)  [2.571] "
+        pddl_string = pddl_string.split(": ") 
+        action_duration = pddl_string[1].split("  ")
+        action = action_duration[0][1:-1].split()
+        duration = action_duration[1][1:-1]
+        if action[0] == "move":
+            return "move from "+action[2]+" to "+action[3]+" in "+duration+ " s"
+        elif action[0] == "grasp":
+            return "pick "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
+        elif action[0] == "place":
+            return "place from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
+        return "None"
 
     
     def print_textual_logs(self):
@@ -202,7 +206,7 @@ if __name__ == '__main__':
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
     
-    rdm = RosplanDialogueManager(mpnn,convqa,triples2text)
+    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=2)
     quit = False
     rdm.triples2text = lambda x: x
     while not quit:
