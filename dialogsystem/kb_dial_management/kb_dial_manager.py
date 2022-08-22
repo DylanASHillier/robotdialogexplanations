@@ -131,7 +131,6 @@ class DialogueKBManager():
         triples = self._run_mpnn(data)
         self.logs['extracted_triples'].append(triples)
         triples = [triple.split(",") for triple in triples]
-        
         text = self._run_triples2text(triples)
         self.logs['extracted_text'].append(text)
         answer = self._run_convqa(question, text)
@@ -179,11 +178,16 @@ class DialogueKBManager():
         '''
         given a list of triples, concatenate any that have the same entity
         '''
+        def remove_self_loop(triple):
+            if triple[0] == triple[2]:
+                return triple[:2]
+            else:
+                return triple
         def search(triple, coalesced_triples) -> bool:
             for coalesced_triple in coalesced_triples:
                 for other_triples in coalesced_triple:
                     if triple[0] in other_triples or triple[2] in other_triples:
-                        coalesced_triple.append(triple)
+                        coalesced_triple.append(remove_self_loop(triple))
                         return True
             return False
 
@@ -191,7 +195,7 @@ class DialogueKBManager():
         for triple in triples:
             if search(triple, coalesced_triples):
                 continue
-            coalesced_triples.append([triple])
+            coalesced_triples.append([remove_self_loop(triple)])
         return coalesced_triples
             
   
