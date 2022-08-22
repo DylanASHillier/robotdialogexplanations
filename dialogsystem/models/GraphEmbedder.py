@@ -1,4 +1,3 @@
-from optparse import Option
 from torch.nn import Module
 from torch.nn.modules.container import ModuleList
 from torch.nn import Linear, MSELoss
