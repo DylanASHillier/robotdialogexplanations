@@ -82,7 +82,7 @@ class RosplanDialogueManager(DialogueKBManager):
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
         self.kbs.append(self.action_kbs[-1])
-        print(self.kbs)
+        self.logs["base_graphs"].append(self.action_kbs[-1])
 
     def _process_plan_db(self) -> MultiDiGraph:
         # get the messages in the database collection "plan" which describe the actions to be taken
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     
     rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=2)
     quit = False
-    rdm.triples2text = lambda x: x
+    rdm.triples2text = lambda x:x
     while not quit:
         user_input = input("input: ")
         if user_input == "quit":
