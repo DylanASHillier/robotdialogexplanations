@@ -1,7 +1,7 @@
 from torch.nn import Module, ModuleList
 from torch_geometric.nn import GATv2Conv
 from torch.nn import Conv1d, ELU, MSELoss, Linear
-from torch import sigmoid, topk
+from torch import sigmoid, topk, softmax
 from pytorch_lightning import LightningModule
 from torch.optim import Adam
 from torch_geometric.nn import avg_pool_neighbor_x
@@ -35,8 +35,8 @@ class LightningKGQueryMPNN(LightningModule):
             x = layer(x,edge_index)
             x = self.activations[i](x)
         x = self.final_layer(x)
-        x = sigmoid(x).squeeze()
-        if self.avg_pooling:
+        x = softmax(x, dim=0).view(-1)
+        if self.avg_pooling and x.numel() > 0: # checks that x is not empty
             pool_graph = Data(x=x,edge_index=edge_index)
             output = avg_pool_neighbor_x(pool_graph).x
         else:
