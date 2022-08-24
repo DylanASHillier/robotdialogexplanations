@@ -3,14 +3,14 @@ from torch.nn.modules.container import ModuleList
 from torch.nn import Linear, MSELoss
 from torch.optim import Adam
 from torch import cat, tanh, mean, no_grad, tensor, zeros, LongTensor
-from networkx import compose, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed
+from networkx import compose, get_edge_attributes, get_node_attributes, set_edge_attributes, set_node_attributes, line_graph, is_directed, MultiDiGraph
 from torch_geometric.utils import from_networkx, remove_self_loops
 from torch_geometric.transforms import LineGraph
 from torch_geometric.data import Data
 from transformers import T5ForConditionalGeneration, AutoTokenizer
 from pytorch_lightning import LightningModule
 from tqdm import tqdm
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple, Dict
 from collections import defaultdict
 
 class LitAutoEncoder(LightningModule):
@@ -134,13 +134,15 @@ class GraphTransformer(Module):
             auto_encoder =None
         self.lm_embedder = LMEmbedder(lmodel,tokenizer, auto_encoder= auto_encoder)
 
-    def embed(self, nxgraph):
+    def embed(self, nxgraph: Optional[MultiDiGraph]) -> Optional[Tuple[Dict, Dict]]:
         '''
         Returns the node and edge attributes of the result of embedding the graph 
         Arguments:
             graph: networkx graph instance,
             query: string, query used
         '''
+        if nxgraph is None:
+            return None
         node_attributes = {node:node for node in nxgraph.nodes}
         edge_attributes = get_edge_attributes(nxgraph,'label')
         keys = edge_attributes.keys()
@@ -170,13 +172,16 @@ class GraphTransformer(Module):
                 set_edge_attributes(nxgraph,_switch_dict(rel_attributes),'relevance_label')
         return nxgraph
 
-    def transform(self, nxgraph, relevance_label=False):
+    def transform(self, nxgraph: Optional[MultiDiGraph], relevance_label: bool= False) -> Optional[Data]:
         '''
         Transforms the graph into a line graph from networkx
         Arguments:
             nxgraph: networkx graph instance,
             relevance_label: boolean, whether to add relevance labels to the graph
+        Returns Pytorch Geom Data or None if the Graph is empty
         '''
+        if nxgraph is None or nxgraph.number_of_edges()==0:
+            return None
         if relevance_label:
             data = _from_multigraph_networkx(nxgraph,group_edge_attrs=['embedding', 'relevance_label'])
         else:
@@ -186,7 +191,7 @@ class GraphTransformer(Module):
         data = LineGraph()(data)
         return data
 
-    def update(self, original_graph, new_graph, relevance_label=False):
+    def update(self, original_graph: Optional[MultiDiGraph], new_graph: Optional[MultiDiGraph], relevance_label: bool= False) -> Optional[MultiDiGraph]:
         '''
         used to update the graph with new triples
         Arguments:
@@ -194,12 +199,16 @@ class GraphTransformer(Module):
             new_graph: networkx graph instance,
             relevance_label: boolean, whether to utilise relevance labels as attributes
         '''
+        if original_graph is None:
+            return new_graph
+        if new_graph is None:
+            return original_graph
         new_graph = compose(original_graph,new_graph)
         edge_attributes, edge_labels = self.embed(new_graph)
         new_graph = self._update_attributes(new_graph, edge_attributes, edge_labels, relevance_label)
         return new_graph
 
-    def forward(self,nxgraph, relevance_label=True):
+    def forward(self,nxgraph: Optional[MultiDiGraph], relevance_label=True) -> Optional[Data]:
         '''
         arguments:
             nxgraph: a networkx (knowledge) graph,
@@ -210,14 +219,18 @@ class GraphTransformer(Module):
 
         use the edge_index to reverse the line graph transform (for checking the text on the original triple).
         '''
+        if nxgraph is None or nxgraph.number_of_edges() == 0:
+            return None
         edge_attributes, edge_labels = self.embed(nxgraph)
         nxgraph = self._update_attributes(nxgraph, edge_attributes, edge_labels, relevance_label = relevance_label)
         return self.transform(nxgraph, relevance_label = relevance_label)
 
-    def add_query(self, graph_data, query, relevance_label=True):
+    def add_query(self, graph_data: Optional[Data], query, relevance_label=True) -> Optional[Data]:
         """
         Adds the query to the embedding... also seperates out the label from the attributes
         """
+        if graph_data is None:
+            return None
         query_embedding = self.lm_embedder(query)
         if relevance_label:
             graph_data.y = graph_data.x[:,-1]
@@ -281,7 +294,7 @@ def _from_multigraph_networkx(G, group_node_attrs: Optional[Union[List[str], all
             data[key] = tensor(value)
         except ValueError:
             pass
-    data['edge_index'] = edge_index.view(edge_index.shape[0], -1)
+    data['edge_index'] = edge_index.view(3, -1)
     data = Data.from_dict(data)
 
     if group_node_attrs is all:
