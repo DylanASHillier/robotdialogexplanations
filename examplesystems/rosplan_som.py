@@ -153,6 +153,20 @@ class RosplanDialogueManager(DialogueKBManager):
             successcount_graph.add_edge(subject,object, label = label)
         return successcount_graph
     
+    def _process_static_knowledge_graph(self) -> MultiDiGraph:
+         # static knowledge items for labeling objects and action names with their types
+        ki_collection = self.db["knowledgeitems"]
+        static_ki_results = ki_collection.find({"SESSION_NUM":11,"knowledgeItem.attribute_name":"is_of_type"})
+        static_ki_graph = MultiDiGraph()
+        for res in static_ki_results:
+            
+            subject = res["knowledgeItem"]["values"][0]["value"]
+            label = "is of type"
+            
+            object = res["knowledgeItem"]["values"][1]["value"]
+            static_ki_graph.add_edge(subject,object, label = label)
+        return static_ki_graph
+
     def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
 
         plan_graph = self._process_plan_db()
@@ -162,9 +176,10 @@ class RosplanDialogueManager(DialogueKBManager):
 
         task_result_graph = self._process_pick_and_place_db()
         successcount_graph = self._process_success_count_graph()
+        static_ki_graph = self._process_static_knowledge_graph()
 
 
-        return [task_result_graph, successcount_graph, plan_graph]
+        return [task_result_graph, successcount_graph, plan_graph, static_ki_graph]
     
     def question_and_response(self, question: str):
         ### Handles mode switching???
