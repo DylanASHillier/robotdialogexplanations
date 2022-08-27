@@ -188,7 +188,7 @@ class GraphTransformer(Module):
             data = _from_multigraph_networkx(nxgraph,group_edge_attrs=['embedding'])
         if not is_directed(nxgraph):
             data.edge_index,data.edge_attr=remove_self_loops(data.edge_index,data.edge_attr)
-        data = LineGraph()(data)
+        data = LineGraph(force_directed=True)(data)
         return data
 
     def update(self, original_graph: Optional[MultiDiGraph], new_graph: Optional[MultiDiGraph], relevance_label: bool= False) -> Optional[MultiDiGraph]:
