@@ -26,7 +26,7 @@ class DialogueKBManager():
     To use:
         implement initialise_kbs
     '''
-    def __init__(self, knowledge_base_args, mpnn, convqa, triples2text, top_k=10, top_p=0.1) -> None:
+    def __init__(self, knowledge_base_args, mpnn, convqa, triples2text, top_k=10, top_p=0.5) -> None:
         '''
         knowledge_bases: dict of knowledge base arguments used by `initialise_kbs` to create the knowledge bases
         mpnn: module that runs the message passing neural network
@@ -174,7 +174,8 @@ class DialogueKBManager():
             return []
         output = self.mpnn(data.x, data.edge_index)
         output, indices = topk(output, min(self.top_k, output.size(0)),sorted=True)
-        
+        print(indices)
+        print("Output:", output)
         # output until sum reaches top_p
         running_sum = 0
         for i,e in enumerate(output):
