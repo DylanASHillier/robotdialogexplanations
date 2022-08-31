@@ -23,7 +23,7 @@ import re
 class RPActionDialogueManager(DialogueKBManager):
     def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
-        self.db = client["database_test"]
+        self.db = client["testing_db"]
         self.session_num = session_num
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
@@ -43,7 +43,9 @@ class RPActionDialogueManager(DialogueKBManager):
                 graph_list.append(current_graph)
                 current_graph = current_graph.copy()
                 i +=1
-            if res["knowledgeItem"]["knowledge_type"]==1: # this is of type FACT
+
+            # !!!! knowledge_type = 1 is of type FACT --> if you need to log INSTANCE, knowledge_type = 0 
+            if (res["knowledgeItem"]["knowledge_type"]==1) and (res["update_type"] != "add_goal"): 
                 subject = res["knowledgeItem"]["values"][0]["value"]
                 
                 object = res["knowledgeItem"]["values"][-1]["value"]
@@ -54,6 +56,9 @@ class RPActionDialogueManager(DialogueKBManager):
                 elif res["update_type"] == "remove_knowledge":
                     current_graph.remove_edge(subject,object)
         graph_list.append(current_graph) # add the last graph
+
+        # TODO: another kb for goals: filter out using res["update_type"] != "add_goal"
+
         return graph_list
 
     def predicate_mapping(self, predicate):
@@ -74,7 +79,7 @@ class RPActionDialogueManager(DialogueKBManager):
 class RosplanDialogueManager(DialogueKBManager):
     def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
-        self.db = client["database_test"]
+        self.db = client["testing_db"]
         self.session_num = session_num
         self.ActionDialogueManager = RPActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
         self.action_kbs = self.ActionDialogueManager.kbs
