@@ -4,6 +4,7 @@ from networkx import MultiDiGraph, Graph, is_directed
 
 def extract_nodes(tup):
     nxg,ec,k = tup
+    nxg = nxg.to_undirected()
     lengths = single_source_shortest_path_length(nxg, ec, cutoff=k)
     return list(lengths.keys())
 

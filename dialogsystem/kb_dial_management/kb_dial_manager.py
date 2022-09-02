@@ -41,7 +41,7 @@ class DialogueKBManager():
         self.triples2text = triples2text
         self.dialogue_graph = MultiDiGraph()
         self.dialogue_context = ""
-        self.candidategenerator = CandidateGenerator(3,0.3)
+        self.candidategenerator = CandidateGenerator(10,0.3)
         self.graph_constructor = GraphConstructor()
         self.entity_queue = []
         self.entity_queue_max = 100
@@ -158,7 +158,7 @@ class DialogueKBManager():
         for kb in self.kbs:
             entities = self._get_entities_from_graph(kb)
             entities = self.candidategenerator.trim(question,entities)
-            self.graph_constructor.input_nx_graph_with_trimming(kb, entities, 1)
+            self.graph_constructor.input_nx_graph_with_trimming(kb, entities, 3)
             all_entities += entities
         return self.graph_constructor.build_graph()
     
@@ -241,6 +241,7 @@ if __name__ == "__main__":
     tiny_graph.add_node("banana")  
     small_graph = MultiDiGraph()
     small_graph.add_edge("banana","fruit",label="is a")
+    small_graph.add_node("apple")
 
     sample_nodes = ["banana","fruit","apple","orange","pear","grape","chair","table","fridge","catalyst","mandarin","mercury"]
     sample_edge_labels = ["is a","has","wants","fights","is in","is on"]
