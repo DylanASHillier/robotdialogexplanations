@@ -23,7 +23,7 @@ import re
 class RPActionDialogueManager(DialogueKBManager):
     def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
-        self.db = client["testing_db"]
+        self.db = client["scenarios_db"]
         self.session_num = session_num
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
@@ -38,6 +38,7 @@ class RPActionDialogueManager(DialogueKBManager):
 
         ## assumes that the knowledgeitems are in order of action_id
         i = 0 # tracker of action_id to be included in kg
+        ##TODO: YOU MAY WANT i = -1 TO INCLUDE GOALS AND CONDITIONS?
         for res in queryresults:
             if res["action_id"] > i:
                 graph_list.append(current_graph)
@@ -45,6 +46,7 @@ class RPActionDialogueManager(DialogueKBManager):
                 i +=1
 
             # !!!! knowledge_type = 1 is of type FACT --> if you need to log INSTANCE, knowledge_type = 0 
+            # you may remove the first condition if you want to include static knowledge/typing into graph
             if (res["knowledgeItem"]["knowledge_type"]==1) and (res["update_type"] != "add_goal"): 
                 subject = res["knowledgeItem"]["values"][0]["value"]
                 
@@ -57,7 +59,6 @@ class RPActionDialogueManager(DialogueKBManager):
                     current_graph.remove_edge(subject,object)
         graph_list.append(current_graph) # add the last graph
 
-        # TODO: another kb for goals: filter out using res["update_type"] != "add_goal"
 
         return graph_list
 
@@ -74,12 +75,14 @@ class RPActionDialogueManager(DialogueKBManager):
             return "Robot has visited"
         if predicate == "robot_done_pick_place":
             return "is done with picking or placing"
+        if predicate == "wp_checked_out":
+            return "Robot tried finding a box at"
         
 
 class RosplanDialogueManager(DialogueKBManager):
     def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={}) -> None:
         client = pymongo.MongoClient("mongodb://localhost:62345/")
-        self.db = client["testing_db"]
+        self.db = client["scenarios_db"]
         self.session_num = session_num
         self.ActionDialogueManager = RPActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
         self.action_kbs = self.ActionDialogueManager.kbs
@@ -91,6 +94,7 @@ class RosplanDialogueManager(DialogueKBManager):
 
     def _process_plan_db(self) -> MultiDiGraph:
         # get the messages in the database collection "plan" which describe the actions to be taken
+        # TODO: link up with action_id 
         plan_collection = self.db["plan"]
         plan_results =plan_collection.find({"SESSION_NUM":self.session_num})
         plan_graph = MultiDiGraph()
@@ -128,10 +132,9 @@ class RosplanDialogueManager(DialogueKBManager):
             return True
         return False
 
-
-
     def _process_pick_and_place_db(self) -> MultiDiGraph:
-        # graph for pick and place results with failure message
+        # graph for pick and place result of the respective action with failure message
+        # TODO: link up with action_id 
         task_result_collection = self.db["pickplaceresults"]
         task_query_results = task_result_collection.find({"SESSION_NUM":self.session_num})
         task_result_graph = MultiDiGraph()
@@ -145,7 +148,8 @@ class RosplanDialogueManager(DialogueKBManager):
         return task_result_graph
 
     def _process_success_count_graph(self) -> MultiDiGraph:
-         # success and failure count messages
+         # success and failure count, as well as box count (how many boxes found in perception task)
+         # NOTE: no action_id needed since it is a final count
         successcount_collection = self.db["successcounts"]
         successcount_results = successcount_collection.find({"SESSION_NUM":self.session_num})
         successcount_graph = MultiDiGraph()
@@ -160,17 +164,54 @@ class RosplanDialogueManager(DialogueKBManager):
     
     def _process_static_knowledge_graph(self) -> MultiDiGraph:
          # static knowledge items for labeling objects and action names with their types
+         # TODO: add or remove table as waypoint?
         ki_collection = self.db["knowledgeitems"]
-        static_ki_results = ki_collection.find({"SESSION_NUM":11,"knowledgeItem.attribute_name":"is_of_type"})
+        static_ki_results = ki_collection.find({"SESSION_NUM":self.session_num,"update_type":"add_instance"})
         static_ki_graph = MultiDiGraph()
         for res in static_ki_results:
             
-            subject = res["knowledgeItem"]["values"][0]["value"]
-            label = "is of type"
-            
-            object = res["knowledgeItem"]["values"][1]["value"]
+            subject = res["knowledgeItem"]["instance_name"]
+            label = "is a"
+            object = res["knowledgeItem"]["instance_type"]
             static_ki_graph.add_edge(subject,object, label = label)
         return static_ki_graph
+
+    def _process_conditions_knowledge_graph(self) -> MultiDiGraph:
+         # preconditions for each action, can be "positive" or "negative" knowledge
+         # TODO: link up via action_id with the respective action the condition belongs to
+        ki_collection = self.db["knowledgeitems"]
+        pos_conditions_results = ki_collection.find({"SESSION_NUM":self.session_num,"update_type": "positive_condition"})
+        neg_conditions_results = ki_collection.find({"SESSION_NUM":self.session_num,"update_type": "negative_condition"})
+        conditions_graph = MultiDiGraph()
+        for res in pos_conditions_results:
+            subject = "Action "+str(res["action_id"]) # TO CHANGE?
+
+            # for object, you may add a predicate_mapping function for better labeling?
+            object = res["knowledgeItem"]["attribute_name"] 
+            label = "required that"
+            conditions_graph.add_edge(subject,object, label = label)
+        for res in neg_conditions_results:
+            subject = "Action "+str(res["action_id"]) 
+            object = res["knowledgeItem"]["attribute_name"]
+            label = "required that NOT" # TO CHANGE? e.g. box_on_robot should not happen before pick action
+            conditions_graph.add_edge(subject,object, label = label)
+        return conditions_graph
+
+    def _process_goals_graph(self) -> MultiDiGraph:
+         # graph for the goals of the plan, can be used to JUSTIFY a specific action
+        ki_collection = self.db["knowledgeitems"]
+        goals_results = ki_collection.find({"SESSION_NUM":self.session_num,"update_type":"add_goal"})
+        goals_graph = MultiDiGraph()
+
+        # TODO: link up with action_ids : e.g. action 1 (pick green wp1) has goal (place green wp3)
+        # NOTE: action_id is always -1 for these items
+        # TODO: decide whether we use this or just add an edge to each action in the "PLAN" with its respective end goal action
+        for res in goals_results:
+            subject = res["knowledgeItem"]["values"][0]["value"]
+            object = res["knowledgeItem"]["values"][-1]["value"]
+            label = res["knowledgeItem"]["attribute_name"]
+            
+        return goals_graph 
 
     def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
 
@@ -182,9 +223,10 @@ class RosplanDialogueManager(DialogueKBManager):
         task_result_graph = self._process_pick_and_place_db()
         successcount_graph = self._process_success_count_graph()
         static_ki_graph = self._process_static_knowledge_graph()
+        conditions_graph = self._process_conditions_knowledge_graph()
+        goals_graph = self._process_goals_graph() # not added to return
 
-
-        return [task_result_graph, successcount_graph, plan_graph, static_ki_graph]
+        return [task_result_graph, successcount_graph, plan_graph, static_ki_graph, conditions_graph]
     
     def question_and_response(self, question: str):
         ### Handles mode switching???
@@ -202,11 +244,13 @@ class RosplanDialogueManager(DialogueKBManager):
         action = action_duration[0][1:-1].split()
         duration = action_duration[1][1:-1]
         if action[0] == "move":
-            return "move from "+action[2]+" to "+action[3]+" in "+duration+ " s"
+            return "move from "+action[2]+" to "+action[3]+" in "+duration+ " s" #TODO: decide whether to have duration or not and how
         elif action[0] == "grasp":
             return "pick "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
         elif action[0] == "place":
             return "place from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
+        elif action[0] == "perceive":
+            return "check for box at table "+action[2]
         return "None"
 
     
@@ -226,7 +270,7 @@ if __name__ == '__main__':
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
     
-    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=2)
+    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=10)
     quit = False
     rdm.triples2text = lambda x:x
     while not quit:
