@@ -5,7 +5,7 @@ sys.path.append(dirname("./dialogsystem"))
 from dialogsystem.models.convqa import ConvQASystem
 from dialogsystem.models.kgqueryextract import LightningKGQueryMPNN
 from dialogsystem.kb_dial_management.kb_dial_manager import DialogueKBManager
-from dialogsystem.models.triples2text import Triples2TextSystem
+from dialogsystem.models.triples2text import PretrainedTriples2TextSystem, Triples2TextSystem
 #sys.path.append(dirname("../ebbhrd_hrd/src"))
 #from src.EBB_Offline_Interface import EBB_interface
 import math
@@ -22,8 +22,8 @@ import re
 
 class RPActionDialogueManager(DialogueKBManager):
     def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
-        client = pymongo.MongoClient("mongodb://localhost:62345/")
-        self.db = client["database_test"]
+        client = pymongo.MongoClient("mongodb://localhost:27017/")
+        self.db = client["scenarios_db"]
         self.session_num = session_num
 
         super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
@@ -73,7 +73,7 @@ class RPActionDialogueManager(DialogueKBManager):
 
 class RosplanDialogueManager(DialogueKBManager):
     def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={}) -> None:
-        client = pymongo.MongoClient("mongodb://localhost:62345/")
+        client = pymongo.MongoClient("mongodb://localhost:27017/")
         self.db = client["database_test"]
         self.session_num = session_num
         self.ActionDialogueManager = RPActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
@@ -156,7 +156,7 @@ class RosplanDialogueManager(DialogueKBManager):
     def _process_static_knowledge_graph(self) -> MultiDiGraph:
          # static knowledge items for labeling objects and action names with their types
         ki_collection = self.db["knowledgeitems"]
-        static_ki_results = ki_collection.find({"SESSION_NUM":11,"knowledgeItem.attribute_name":"is_of_type"})
+        static_ki_results = ki_collection.find({"SESSION_NUM":41,"knowledgeItem.attribute_name":"is_of_type"})
         static_ki_graph = MultiDiGraph()
         for res in static_ki_results:
             
@@ -217,13 +217,11 @@ class RosplanDialogueManager(DialogueKBManager):
 
 if __name__ == '__main__':
     convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
-    triples2text = Triples2TextSystem("./dialogsystem/trained_models/t2t/t2ttrained")
+    triples2text = PretrainedTriples2TextSystem()
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
-    
-    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=2)
+    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=41)
     quit = False
-    rdm.triples2text = lambda x:x
     while not quit:
         user_input = input("input: ")
         if user_input == "quit":

@@ -1,22 +1,8 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, TextGenerationPipeline, T5ForConditionalGeneration
-from flask import Flask, request, json
-
-app = Flask(__name__)
-
-## hugging face generation models: 
-# # tried "facebook/blenderbot-1B-distill" , 'facebook/bart-base', but ERROR
-# "bigscience/bloom-560m" , ctrl-small or ctrl, 
-# EleutherAI/gpt-neo-125M : good effort to combine triplets 
-# gpt-neo-1.3B
-# RUCAIBox/mvp (returns gibberish, even tried in format "Describe the data: robot|likes|apples"), google/pegasus (which one to choose? documentation is not very clear)
-# "gpt2" # returns code ? not NL sentence? gptj too large
-model_string = "EleutherAI/gpt-neo-2.7B"  #BEST
-
-#robot, is, big; robot, like, apples
-#robot, visited, waypoint; waypoint, is, kitchen
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextGenerationPipeline
+model_string = "EleutherAI/gpt-neo-1.3B"  #BEST
+# model_string = "facebook/opt-125m"
 
 model = AutoModelForCausalLM.from_pretrained(model_string)
-#model = T5ForConditionalGeneration.from_pretrained("dialogsystem/trained_models/t2t/t2ttrained")
 tokenizer = AutoTokenizer.from_pretrained(model_string)
 pipeline = TextGenerationPipeline(model=model, tokenizer=tokenizer, device=-1)
 generation_params={
@@ -25,25 +11,8 @@ generation_params={
 "top_p":0.4,
 "repetition_penalty":1.5,
 "length_penalty":0.01,
-#"max_length":150, 
 "max_new_tokens": 50
-# could have top_k = 50 activated too
- 
 }
-
-#@app.route('/', methods=['POST'])
-# def infer():
-#     '''
-#     Receives text input from post request and runs infernece on it.
-#     '''
-#     text = request.form['text']
-#     out = pipeline(
-#     text, 
-#     return_full_text=False,
-#     generation_kwargs=generation_params
-#     )
-#     out = out[0]["generated_text"]
-#     return out
 
 if __name__=='__main__':
     while True:
