@@ -242,13 +242,12 @@ class RosplanDialogueManager(DialogueKBManager):
         pddl_string = pddl_string.split(": ") 
         action_duration = pddl_string[1].split("  ")
         action = action_duration[0][1:-1].split()
-        duration = action_duration[1][1:-1]
         if action[0] == "move":
-            return "move from "+action[2]+" to "+action[3]+" in "+duration+ " s" #TODO: decide whether to have duration or not and how
+            return "move from "+action[2]+" to "+action[3]
         elif action[0] == "grasp":
-            return "pick "+action[2]+" from table at "+action[3]+" in "+duration+ " s"
+            return "pick "+action[2]+" from table at "+action[3]
         elif action[0] == "place":
-            return "place from "+action[2]+" onto table at "+action[3]+" in "+duration+ " s"
+            return "place from "+action[2]+" onto table at "+action[3]
         elif action[0] == "perceive":
             return "check for box at table "+action[2]
         return "None"
