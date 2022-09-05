@@ -21,12 +21,12 @@ import re
 
 
 class RPActionDialogueManager(DialogueKBManager):
-    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}) -> None:
+    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={'session':(2022,4,26)}, top_p=0.5) -> None:
         client = pymongo.MongoClient("mongodb://localhost:27017/")
         self.db = client["scenarios_db"]
         self.session_num = session_num
 
-        super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
+        super().__init__(knowledge_base_args, mpnn, convqa, triples2text, top_p=top_p)
 
     def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
         ## proceses knowledgeitem graph (state of the world)
@@ -80,15 +80,15 @@ class RPActionDialogueManager(DialogueKBManager):
         
 
 class RosplanDialogueManager(DialogueKBManager):
-    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={}) -> None:
+    def __init__(self, mpnn, convqa, triples2text, session_num, knowledge_base_args={}, top_p=0.5) -> None:
         client = pymongo.MongoClient("mongodb://localhost:27017/")
         self.db = client["scenarios_db"]
         self.session_num = session_num
-        self.ActionDialogueManager = RPActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args)
+        self.ActionDialogueManager = RPActionDialogueManager(mpnn, convqa, triples2text, session_num, knowledge_base_args, top_p)
         self.action_kbs = self.ActionDialogueManager.kbs
         self.selected_action = None
 
-        super().__init__(knowledge_base_args, mpnn, convqa, triples2text)
+        super().__init__(knowledge_base_args, mpnn, convqa, triples2text, top_p=top_p)
         self.kbs.append(self.action_kbs[-1])
         self.logs["base_graphs"].append(self.action_kbs[-1])
 
