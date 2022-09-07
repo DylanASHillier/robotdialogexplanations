@@ -48,10 +48,7 @@ class RPActionDialogueManager(DialogueKBManager):
             # !!!! knowledge_type = 1 is of type FACT --> if you need to log INSTANCE, knowledge_type = 0 
             # you may remove the first condition if you want to include static knowledge/typing into graph
             if (res["knowledgeItem"]["knowledge_type"]==1) and (res["update_type"] != "add_goal"): 
-                subject = res["knowledgeItem"]["values"][0]["value"]
-                
-                object = res["knowledgeItem"]["values"][-1]["value"]
-                label = self.predicate_mapping(res["knowledgeItem"]["attribute_name"])
+                subject, object, label = process_knowledgeitem(res["knowledgeItem"])
                 if res["update_type"] == "add_knowledge":
                     current_graph.add_edge(subject,object,
                     label = label)
@@ -62,21 +59,27 @@ class RPActionDialogueManager(DialogueKBManager):
 
         return graph_list
 
-    def predicate_mapping(self, predicate):
-        if predicate == "robot_at_wp":
-            return "is at"
-        if predicate == "box_at_wp":
-            return "is on table at"
-        if predicate == "box_on_robot":
-            return "is held by"
-        if predicate == "robot_does_not_have_box":
-            return "is not holding a box"
-        if predicate == "wp_visited":
-            return "Robot has visited"
-        if predicate == "robot_done_pick_place":
-            return "is done with picking or placing"
-        if predicate == "wp_checked_out":
-            return "Robot tried finding a box at"
+def process_knowledgeitem(knowledgeitem):
+    subject = knowledgeitem["values"][0]["value"]
+    object = knowledgeitem["values"][-1]["value"]
+    label = attribute_predicate_mapping(knowledgeitem["attribute_name"])
+    return subject, object, label
+
+def attribute_predicate_mapping(predicate):
+    if predicate == "robot_at_wp":
+        return "is at"
+    if predicate == "box_at_wp":
+        return "is on table at"
+    if predicate == "box_on_robot":
+        return "is held by"
+    if predicate == "robot_does_not_have_box":
+        return "is not holding a box"
+    if predicate == "wp_visited":
+        return "Robot has visited"
+    if predicate == "robot_done_pick_place":
+        return "is done with picking or placing"
+    if predicate == "wp_checked_out":
+        return "Robot tried finding a box at"
         
 
 class RosplanDialogueManager(DialogueKBManager):
@@ -94,7 +97,6 @@ class RosplanDialogueManager(DialogueKBManager):
 
     def _process_plan_db(self) -> MultiDiGraph:
         # get the messages in the database collection "plan" which describe the actions to be taken
-        # TODO: link up with action_id 
         plan_collection = self.db["plan"]
         plan_results =plan_collection.find({"SESSION_NUM":self.session_num})
         plan_graph = MultiDiGraph()
@@ -104,14 +106,17 @@ class RosplanDialogueManager(DialogueKBManager):
         print("Here is the plan: \n")
         print("State -1 Initial State")
         i = 0
+        subject = None
         for res in plan_results:
             subject = self.naturalise_plan_action(res["plan_action"])
-            print(f"Action {i} {subject} ")
+            action_id = f"Action {i}"
+            print(f"{action_id}: {subject} ")
             i += 1
             # **************** plan_graph generation **********************************
             label = "is part of"
-            object = "Plan 1" # TODO change the number of plan so it is updated when new plan is generated
-            plan_graph.add_edge(subject,object, label = label)
+            plan_id = "Plan 1"
+            plan_graph.add_edge(subject,action_id,label="is")
+            plan_graph.add_edge(subject,plan_id, label = label)
             if (node_before == "start of plan"):
                 plan_graph.add_edge(node_before, subject, label = "is")
             else:
@@ -119,7 +124,8 @@ class RosplanDialogueManager(DialogueKBManager):
                 plan_graph.add_edge(subject, node_before, label = "after")
             node_before = subject
 
-            
+        if subject is None:
+            raise ValueError("No plan found in database")    
         plan_graph.add_edge(subject, "end of plan", label = "is")
         return plan_graph
 
@@ -184,17 +190,21 @@ class RosplanDialogueManager(DialogueKBManager):
         neg_conditions_results = ki_collection.find({"SESSION_NUM":self.session_num,"update_type": "negative_condition"})
         conditions_graph = MultiDiGraph()
         for res in pos_conditions_results:
-            subject = "Action "+str(res["action_id"]) # TO CHANGE?
-
-            # for object, you may add a predicate_mapping function for better labeling?
-            object = res["knowledgeItem"]["attribute_name"] 
+            action_id = "Action "+str(res["action_id"])
+            condition_subject, condition_object, condition_label = process_knowledgeitem(res["knowledgeItem"])
+            condition_summary = condition_subject + " " + condition_label + " " + condition_object
+            conditions_graph.add_edge(condition_summary, condition_object, label = "involves")
+            conditions_graph.add_edge(condition_summary, condition_subject, label = "involves")
             label = "required that"
-            conditions_graph.add_edge(subject,object, label = label)
+            conditions_graph.add_edge(action_id,condition_summary, label = label)
         for res in neg_conditions_results:
-            subject = "Action "+str(res["action_id"]) 
-            object = res["knowledgeItem"]["attribute_name"]
-            label = "required that NOT" # TO CHANGE? e.g. box_on_robot should not happen before pick action
-            conditions_graph.add_edge(subject,object, label = label)
+            action_id = "Action "+str(res["action_id"])
+            condition_subject, condition_object, condition_label = process_knowledgeitem(res["knowledgeItem"])
+            condition_summary = condition_subject + "," + condition_label + "," + condition_object
+            conditions_graph.add_edge(condition_summary, condition_object, label = "involves that NOT")
+            conditions_graph.add_edge(condition_summary, condition_subject, label = "involves that NOT")
+            label = "required that NOT"
+            conditions_graph.add_edge(action_id,condition_summary, label = label)
         return conditions_graph
 
     def _process_goals_graph(self) -> MultiDiGraph:
@@ -207,9 +217,15 @@ class RosplanDialogueManager(DialogueKBManager):
         # NOTE: action_id is always -1 for these items
         # TODO: decide whether we use this or just add an edge to each action in the "PLAN" with its respective end goal action
         for res in goals_results:
-            subject = res["knowledgeItem"]["values"][0]["value"]
-            object = res["knowledgeItem"]["values"][-1]["value"]
-            label = res["knowledgeItem"]["attribute_name"]
+            goal_subject, goal_object, goal_label = process_knowledgeitem(res["knowledgeItem"])
+            goal_summary = goal_subject + " " + goal_label + " " + goal_object
+            goals_graph.add_edge(goal_summary, goal_object, label = "involves")
+            goals_graph.add_edge(goal_summary, goal_subject, label = "involves")
+            goals_graph.add_edge(goal_summary, "gool", label = "is a")
+            action_id = "Action "+str(res["action_id"])
+            label = "has goal"
+            goals_graph.add_edge(action_id,goal_summary, label = label)
+            # goals_graph.add_edge(goal_subject, goal_object, label = goal_label)
             
         return goals_graph 
 
@@ -224,9 +240,10 @@ class RosplanDialogueManager(DialogueKBManager):
         successcount_graph = self._process_success_count_graph()
         static_ki_graph = self._process_static_knowledge_graph()
         conditions_graph = self._process_conditions_knowledge_graph()
-        goals_graph = self._process_goals_graph() # not added to return
+        goals_graph = self._process_goals_graph()
 
-        return [task_result_graph, successcount_graph, plan_graph, static_ki_graph, conditions_graph]
+        return [plan_graph, task_result_graph, successcount_graph, static_ki_graph, conditions_graph, goals_graph]
+        # return [cosmpose_all([task_result_graph, successcount_graph, plan_graph, static_ki_graph, conditions_graph, goals_graph])]
     
     def question_and_response(self, question: str):
         ### Handles mode switching???
@@ -264,11 +281,13 @@ class RosplanDialogueManager(DialogueKBManager):
         print(data)
 
 if __name__ == '__main__':
-    convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
-    triples2text = PretrainedTriples2TextSystem()
+    # convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
+    convqa = lambda x: x
+    # triples2text = PretrainedTriples2TextSystem()
+    triples2text = lambda x: x
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
-    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=41)
+    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=2, db_string="scenarios_db_2")
     quit = False
     while not quit:
         user_input = input("input: ")
