@@ -108,7 +108,9 @@ class RosplanDialogueManager(DialogueKBManager):
         i = 0
         subject = None
         for res in plan_results:
-            subject = self.naturalise_plan_action(res["plan_action"])
+            subject, objects = self.naturalise_plan_action(res["plan_action"])
+            for object in objects:
+                plan_graph.add_edge(subject,object, label = "involves")
             action_id = f"Action {i}"
             print(f"{action_id}: {subject} ")
             i += 1
@@ -222,11 +224,6 @@ class RosplanDialogueManager(DialogueKBManager):
             goals_graph.add_edge(goal_summary, goal_object, label = "involves")
             goals_graph.add_edge(goal_summary, goal_subject, label = "involves")
             goals_graph.add_edge(goal_summary, "gool", label = "is a")
-            action_id = "Action "+str(res["action_id"])
-            label = "has goal"
-            goals_graph.add_edge(action_id,goal_summary, label = label)
-            # goals_graph.add_edge(goal_subject, goal_object, label = goal_label)
-            
         return goals_graph 
 
     def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
@@ -242,7 +239,7 @@ class RosplanDialogueManager(DialogueKBManager):
         conditions_graph = self._process_conditions_knowledge_graph()
         goals_graph = self._process_goals_graph()
 
-        return [plan_graph, task_result_graph, successcount_graph, static_ki_graph, conditions_graph, goals_graph]
+        return [compose_all([plan_graph,goals_graph]), task_result_graph, successcount_graph, static_ki_graph, conditions_graph, plan_graph, goals_graph]
         # return [cosmpose_all([task_result_graph, successcount_graph, plan_graph, static_ki_graph, conditions_graph, goals_graph])]
     
     def question_and_response(self, question: str):
@@ -255,19 +252,21 @@ class RosplanDialogueManager(DialogueKBManager):
             return super().question_and_response(question)
     
     def naturalise_plan_action(self,pddl_string):
-        # input string is of form : "0.000: (move tiago init wp1)  [2.571] "
+        """
+        Takes a PDDL string and returns a natural language string describing the action and constituent objects
+        """
         pddl_string = pddl_string.split(": ") 
         action_duration = pddl_string[1].split("  ")
         action = action_duration[0][1:-1].split()
         if action[0] == "move":
-            return "move from "+action[2]+" to "+action[3]
+            return "move from "+action[2]+" to "+action[3], [action[2],action[3]]
         elif action[0] == "grasp":
-            return "pick "+action[2]+" from table at "+action[3]
+            return "pick "+action[2]+" from table at "+action[3], [action[2],action[3]]
         elif action[0] == "place":
-            return "place from "+action[2]+" onto table at "+action[3]
+            return "place from "+action[2]+" onto table at "+action[3], [action[2],action[3]]
         elif action[0] == "perceive":
-            return "check for box at table "+action[2]
-        return "None"
+            return "check for box at table "+action[2], [action[2]]
+        return "None", []
 
     
     def print_textual_logs(self):
