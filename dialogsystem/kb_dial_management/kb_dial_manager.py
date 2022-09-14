@@ -153,11 +153,11 @@ class DialogueKBManager():
         
     def _extract_relevant_graph_from_query(self, question: str):
         all_entities = self._get_entities_from_graph(self.dialogue_graph)
-        all_entities = self.candidategenerator.trim(question,all_entities)
+        all_entities = self.candidategenerator.transformer_trim(question,all_entities)
         self.graph_constructor.input_nx_graph_with_trimming(self.dialogue_graph, all_entities, 3)
         for kb in self.kbs:
             entities = self._get_entities_from_graph(kb)
-            entities = self.candidategenerator.trim(question,entities)
+            entities = self.candidategenerator.transformer_trim(question,entities)
             self.graph_constructor.input_nx_graph_with_trimming(kb, entities, 3)
             all_entities += entities
         return self.graph_constructor.build_graph()
@@ -215,7 +215,8 @@ class DialogueKBManager():
 
     def _run_triples2text(self,triples):
         coalesced_triples = self._coalesce_triples(triples)
-        triples = [";".join([",".join(triple) for triple in coalesced_triple]) for coalesced_triple in coalesced_triples]
+        coalesced_triples = [[",".join(triple) for triple in coalesced_triple] for coalesced_triple in coalesced_triples]
+        triples = [";".join(coalesced_triple) for coalesced_triple in coalesced_triples]
         if len(triples) == 0:
             return ""
         return '\n'.join(self.triples2text(triples))
