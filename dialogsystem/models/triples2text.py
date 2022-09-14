@@ -67,7 +67,7 @@ class PretrainedTriples2TextSystem(LightningModule):
         self.model = AutoModelForCausalLM.from_pretrained(model_string)
         self.tokenizer = AutoTokenizer.from_pretrained(model_string)
         self.pipeline = TextGenerationPipeline(model=self.model, tokenizer=self.tokenizer, device=-1)
-        self.prefix = "translate triples to text:(example) man, is, cool; man, is cook -> the man is a cool cook\n (example) jack, is quick at, walking; jack, is, tall -> jack is both tall and a fast walker \n(actual) "
+        self.prefix = "translate triples to text:man, is, cool; man, is cook -> the man is a cool cook\njack, is quick at, walking; jack, is, tall -> jack is both tall and a fast walker \n "
         self.save_hyperparameters()
 
     def setup_train(self):
@@ -78,7 +78,7 @@ class PretrainedTriples2TextSystem(LightningModule):
         input textual triple of shape [batchsize, maximum_length]
         '''
         output_strings = [self.pipeline(
-        f"{self.prefix} {string} ->", 
+        f"{self.prefix} {string} ->",
         return_full_text=False,
         **generation_params,
         )[0]["generated_text"].split("\n")[0] for string in input]
