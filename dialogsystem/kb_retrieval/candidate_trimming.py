@@ -1,6 +1,8 @@
 from torch.nn import Module
 import Levenshtein
 import nltk
+from sentence_transformers import SentenceTransformer
+from torch import tensor, dot
 
 
 class CandidateGenerator():
@@ -17,6 +19,7 @@ class CandidateGenerator():
         self.candidate_size=candidate_size
         self.candidate_threshold=candidate_threshold
         self.scores={}  #dict[entity_id->match_score]
+        self.model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
     def _similarity(self, word1, word2):
         '''
@@ -29,6 +32,22 @@ class CandidateGenerator():
         Uses the self.scores dictionary and returns the self.candidate_size - top scoring entity_id's
         '''
         return sorted(self.scores.copy(), key=self.scores.get, reverse=True)[:self.candidate_size]
+
+    def transformer_trim(self, query, entities):
+
+        sentences = [query]+[alias for alias in entities.keys()]
+
+        embeddings = tensor(self.model.encode(sentences))
+        for i in range(1,len(sentences)):
+            score = dot(embeddings[0],embeddings[i])
+            if self.candidate_threshold is None or score > self.candidate_threshold:
+                if entities[sentences[i]] in self.scores:
+                    self.scores[entities[sentences[i]]]=max(self.scores[entities[sentences[i]]],score)
+                else:
+                    self.scores[entities[sentences[i]]]=score
+        entity_ids = self._topk()
+        self.scores = {} ## reset scores
+        return entity_ids
 
     def trim(self, query, entities):
         '''
@@ -46,12 +65,13 @@ class CandidateGenerator():
                 mentions.append(word)
         for mention in mentions:
             for alias,entity_id in entities.items():
-                score = self._similarity(mention,alias)
-                if self.candidate_threshold is None or score > self.candidate_threshold:
-                    if entity_id in self.scores:
-                        self.scores[entity_id]=max(self.scores[entity_id],score)
-                    else:
-                        self.scores[entity_id]=score
+                for word in alias.split():
+                    score = self._similarity(mention,word)
+                    if self.candidate_threshold is None or score > self.candidate_threshold:
+                        if entity_id in self.scores:
+                            self.scores[entity_id]=max(self.scores[entity_id],score)
+                        else:
+                            self.scores[entity_id]=score
         entity_ids = self._topk()
         self.scores = {} ## reset scores
         return entity_ids
