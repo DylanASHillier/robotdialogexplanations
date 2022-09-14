@@ -55,9 +55,17 @@ class RPActionDialogueManager(DialogueKBManager):
                 elif res["update_type"] == "remove_knowledge":
                     current_graph.remove_edge(subject,object)
         graph_list.append(current_graph) # add the last graph
-
-
         return graph_list
+
+    def print_textual_logs(self):
+        data = {
+            'questions': self.logs['questions'][-1],
+            'extracted_triples': self.logs['extracted_triples'][-1],
+            'extracted_text': self.logs['extracted_text'][-1],
+            'extracted_answers': self.logs['extracted_answers'][-1],
+            # 'extracted_context': self.logs['extracted_context'],
+        }
+        print(data)
 
 def process_knowledgeitem(knowledgeitem):
     subject = knowledgeitem["values"][0]["value"]
@@ -80,6 +88,10 @@ def attribute_predicate_mapping(predicate):
         return "is done with picking or placing"
     if predicate == "wp_checked_out":
         return "Robot tried finding a box at"
+    if predicate == "box_seen_at":
+        return "box seen at"
+    if predicate == "box_not_seen_at":
+        return "no box seen at"
         
 
 class RosplanDialogueManager(DialogueKBManager):
@@ -223,7 +235,7 @@ class RosplanDialogueManager(DialogueKBManager):
             goal_summary = goal_subject + " " + goal_label + " " + goal_object
             goals_graph.add_edge(goal_summary, goal_object, label = "involves")
             goals_graph.add_edge(goal_summary, goal_subject, label = "involves")
-            goals_graph.add_edge(goal_summary, "gool", label = "is a")
+            goals_graph.add_edge(goal_summary, "goal", label = "is a")
         return goals_graph 
 
     def initialise_kbs(self, **knowledge_base_args) -> list[MultiDiGraph]:
@@ -239,17 +251,19 @@ class RosplanDialogueManager(DialogueKBManager):
         conditions_graph = self._process_conditions_knowledge_graph()
         goals_graph = self._process_goals_graph()
 
-        return [compose_all([plan_graph,goals_graph]), task_result_graph, successcount_graph, static_ki_graph, conditions_graph, plan_graph, goals_graph]
+        return [compose_all([plan_graph,goals_graph,conditions_graph]), compose_all([task_result_graph, successcount_graph]), static_ki_graph]
         # return [cosmpose_all([task_result_graph, successcount_graph, plan_graph, static_ki_graph, conditions_graph, goals_graph])]
     
     def question_and_response(self, question: str):
         ### Handles mode switching???
         if self.selected_action is not None:
-            self.ActionDialogueManager.question_and_response(question,)
+            print(self.ActionDialogueManager.question_and_response(question))
+            self.ActionDialogueManager.print_textual_logs()
         elif self._check_for_action_question(question):
-            return "Ok, I will tell you about action "+str(self.selected_action)
+            print("Ok, I will tell you about action "+str(self.selected_action))
         else:
-            return super().question_and_response(question)
+            print(super().question_and_response(question))
+            self.print_textual_logs()
     
     def naturalise_plan_action(self,pddl_string):
         """
@@ -280,13 +294,13 @@ class RosplanDialogueManager(DialogueKBManager):
         print(data)
 
 if __name__ == '__main__':
-    # convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
-    convqa = lambda x: x
-    # triples2text = PretrainedTriples2TextSystem()
-    triples2text = lambda x: x
+    convqa = ConvQASystem("./dialogsystem/trained_models/convqa")
+    # convqa = lambda x: x
+    triples2text = PretrainedTriples2TextSystem()
+    # triples2text = lambda x: x
     mpnn = LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
     mpnn.avg_pooling=False
-    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=2, db_string="scenarios_db_2")
+    rdm = RosplanDialogueManager(mpnn,convqa,triples2text, session_num=8, db_string="scenarios_db_2")
     quit = False
     while not quit:
         user_input = input("input: ")
@@ -294,8 +308,7 @@ if __name__ == '__main__':
             quit = True
         # elif user_input == "disable triples2text":     
         else:
-            print(rdm.question_and_response(user_input))
-            rdm.print_textual_logs()
+            rdm.question_and_response(user_input)
     # rdm.question_and_response("where is the person in relation to the robot")
     # rdm.question_and_response("Who did you talk to?")
     # rdm.question_and_response("and to whom did you bring the object?")
