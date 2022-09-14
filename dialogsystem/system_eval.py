@@ -1,5 +1,6 @@
 ## Script for doing ablation studies on the system as a whole using the gqa dataset.
 import argparse
+from models.triples2text import PretrainedTriples2TextSystem
 from kb_retrieval.candidate_trimming import CandidateGenerator
 from kb_retrieval.graph_construction import GraphConstructor
 from models.GraphEmbedder import GraphTransformer
@@ -20,21 +21,24 @@ cg = CandidateGenerator(10,0.8)
 graph_trimming_options = {
     "no_trimming": lambda q,ent: ent.values(),
     "trim_candidates": lambda q,ent: cg.trim(q,ent),
+    "transformer_trim": lambda q,ent: cg.transformer_trim(q,ent)
 }
 qtext_mpnn = LightningKGQueryMPNN.load_from_checkpoint("gpuqtextnew.ckpt")
-gqa_mpnn =  LightningKGQueryMPNN.load_from_checkpoint("gpugqa2.ckpt")
+gqa_mpnn =  LightningKGQueryMPNN.load_from_checkpoint("dialogsystem/trained_models/gqanew.ckpt")
 
 mpnn_options = {
     "no_mpnn": lambda x, e_index: x[:,-1],
     "gqa_mpnn": lambda x, e_index: gqa_mpnn(x, e_index),
     "qtext_mpnn": lambda x, e_index: qtext_mpnn(x, e_index),
 }
-# t2t_model = Triples2TextSystem("dialogsystem/trained_models/t2t")
+t2t_model = Triples2TextSystem("dialogsystem/trained_models/t2t")
+t2t_pt_model = PretrainedTriples2TextSystem()
 t2t_options = {
     "no_t2t": lambda x: ''.join(x),
-    # "t2t": lambda x: t2t_model(x),
+    "t2t": lambda x: t2t_model(x),
+    "t2t_pt": lambda x: t2t_pt_model(x),
 }
-convqa_model = ConvQASystem("dialogsystem/trained_models/checkpoint-2500")
+convqa_model = ConvQASystem("dialogsystem/trained_models/convqa")
 convqa_options = {
     "no_convqa": lambda background, rest: background,
     "convqa": lambda background, rest: convqa_model(background+rest),

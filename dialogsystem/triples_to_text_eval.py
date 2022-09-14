@@ -1,4 +1,5 @@
 # evaluate trained conv_qa model on coqa dataset
+from models.triples2text import PretrainedTriples2TextSystem
 from models.triples2text import Triples2TextSystem
 import argparse
 from datasets import load_dataset
@@ -27,7 +28,8 @@ if __name__ == '__main__':
     raw_bleu = 0
     num_samples = 1000
     args = parser.parse_args()
-    model = Triples2TextSystem(args.model_path)
+    # model = Triples2TextSystem(args.model_path)
+    model = PretrainedTriples2TextSystem() # choose 1 of the 2 models
     
     dataset = load_dataset("kelm")
     random.seed(10)
