@@ -10,7 +10,7 @@ class CandidateGenerator():
     Class for finding words that are similar to entities in text, given a list of entities.
     Intended to be used with smaller KGs that have a reasonable amount of entities to do this over.
     '''
-    def __init__(self,candidate_size,candidate_threshold=0.8):
+    def __init__(self,candidate_size,candidate_threshold=0.6):
         '''
         candidate_size: int, the maximum number of candidates output
         candidate_threshold: float?, minimum score on similarity metric to be used

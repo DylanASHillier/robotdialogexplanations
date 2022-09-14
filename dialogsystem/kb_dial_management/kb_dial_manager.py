@@ -26,7 +26,7 @@ class DialogueKBManager():
     To use:
         implement initialise_kbs
     '''
-    def __init__(self, knowledge_base_args, mpnn, convqa, triples2text, top_k=10, top_p=0.5) -> None:
+    def __init__(self, knowledge_base_args, mpnn, convqa, triples2text, top_k=10, top_p=None) -> None:
         '''
         knowledge_bases: dict of knowledge base arguments used by `initialise_kbs` to create the knowledge bases
         mpnn: module that runs the message passing neural network
@@ -174,14 +174,13 @@ class DialogueKBManager():
             return []
         output = self.mpnn(data.x, data.edge_index)
         output, indices = topk(output, min(self.top_k, output.size(0)),sorted=True)
-        print(indices)
-        print("Output:", output)
         # output until sum reaches top_p
-        running_sum = 0
-        for i,e in enumerate(output):
-            running_sum += e
-            if running_sum >= self.top_p:
-                indices = indices[:i+1]
+        if self.top_p is not None:
+            running_sum = 0
+            for i,e in enumerate(output):
+                running_sum += e
+                if running_sum >= self.top_p:
+                    indices = indices[:i+1]
                 break
 
 
@@ -223,7 +222,6 @@ class DialogueKBManager():
 
     def _run_convqa(self,question, background_text):
         prompt = f"background: {background_text}\n context: {self.dialogue_context}\n question: {question}"
-        # print(prompt, self.dialogue_context, question)
         answer = self.convqa(prompt)
         return answer
 
